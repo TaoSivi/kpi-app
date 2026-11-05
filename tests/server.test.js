@@ -28,11 +28,17 @@ ok(HS1('kpiSave', { emp: 'S01', items: [{ t: 'ປິດບັນຊີ', target:
 bad(HS1('kpiSubmit', { emp: 'S01' }), /75/);
 ok(HS1('kpiSave', { emp: 'S01', items: [{ t: 'ປິດບັນຊີ', target: 'ວັນທີ 5', w: 50 }, { t: 'ລາຍງານ', target: '', w: 25 }] }));
 ok(HS1('kpiSubmit', { emp: 'S01' }));
+// manual order: HR checks first, then the employee agrees, then approver, then president
+assert.ok(!ok(S01('boot')).boot.duties.some(d => d.kind === 'kpiAck'));
+assert.equal(ok(S01('boot')).boot.kpi.length, 0);                 // employee can't see it while HR is checking
+assert.ok(ok(HR('boot')).boot.duties.some(d => d.kind === 'kpiHr' && d.emp === 'S01'));
+bad(S01('kpiAck', { ok: true }), /ລໍຖ້າ/);                        // too early
+bad(HD2('kpiAppr', { emp: 'S01', ok: true }));
+ok(HR('kpiHr', { emp: 'S01', ok: true }));
 assert.ok(ok(S01('boot')).boot.duties.some(d => d.kind === 'kpiAck'));
+bad(HD2('kpiAppr', { emp: 'S01', ok: true }));                    // still needs the employee
 bad(S01('kpiAck', { ok: false }), /ເຫດຜົນ/);
 ok(S01('kpiAck', { ok: true }));
-bad(HD2('kpiAppr', { emp: 'S01', ok: true }));          // HR first
-ok(HR('kpiHr', { emp: 'S01', ok: true }));
 assert.ok(ok(HD2('boot')).boot.duties.some(d => d.kind === 'kpiAppr' && d.emp === 'S01'));
 bad(D('kpiAppr', { emp: 'S01', ok: true }), /ສິດ/);
 ok(HD2('kpiAppr', { emp: 'S01', ok: true }));
@@ -43,8 +49,8 @@ assert.equal(store.raw().kpi.find(k => k.emp === 'S01').status, 'ok');
 function approveAll(emp, supFn, w) {
   ok(supFn('kpiSave', { emp, items: [{ t: 'ໜ້າທີ່', target: '', w }] }));
   ok(supFn('kpiSubmit', { emp }));
-  ok(as(emp)('kpiAck', { ok: true }));
   ok(HR('kpiHr', { emp, ok: true }));
+  ok(as(emp)('kpiAck', { ok: true }));
   const k = store.raw().kpi.find(k => k.emp === emp);
   if (k.status === 'appr') {
     const appr = handle({ a: 'boot', t: tok.H01 }, store).boot.staff.find(s => s.code === emp);
@@ -60,9 +66,14 @@ approveAll('S03', HD2, 70);
 
 // return path requires msg and goes back to draft
 ok(HD1('kpiSave', { emp: 'V01', items: [{ t: 'ຂັບລົດປອດໄພ', target: '0 ອຸບັດຕິເຫດ', w: 80 }] }));
-ok(HD1('kpiSubmit', { emp: 'V01' })); ok(V01('kpiAck', { ok: true }));
+ok(HD1('kpiSubmit', { emp: 'V01' }));
 bad(HR('kpiHr', { emp: 'V01', ok: false }), /ເຫດຜົນ/);
 ok(HR('kpiHr', { emp: 'V01', ok: false, msg: 'ເພີ່ມຕົວຊີ້ວັດ' }));
+assert.equal(store.raw().kpi.find(k => k.emp === 'V01').status, 'draft');
+// employee may also decline after HR passed → back to draft
+ok(HD1('kpiSubmit', { emp: 'V01' })); ok(HR('kpiHr', { emp: 'V01', ok: true }));
+bad(V01('kpiAck', { ok: false }), /ເຫດຜົນ/);
+ok(V01('kpiAck', { ok: false, msg: 'ຂໍປັບເປົ້າໝາຍ' }));
 assert.equal(store.raw().kpi.find(k => k.emp === 'V01').status, 'draft');
 
 // --- peers ---

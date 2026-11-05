@@ -37,7 +37,7 @@ const DEFAULT_CONFIG = {
     sub: ['ມອບໝາຍວຽກ ແລະ ເປົ້າໝາຍຈະແຈ້ງ', 'ຮັບຟັງຄວາມຄິດເຫັນຂອງລູກນ້ອງ', 'ປະຕິບັດຕໍ່ທຸກຄົນຢ່າງຍຸຕິທຳ',
       'ສອນງານ ແລະ ສະໜັບສະໜູນເມື່ອມີບັນຫາ', 'ຊົມເຊີຍ ແລະ ໃຫ້ກຳລັງໃຈເມື່ອເຮັດໄດ້ດີ', 'ເປັນແບບຢ່າງທີ່ດີ']
   },
-  iTemplate: ['ໜ້າທີ່ຮັບຜິດຊອບ', 'ໜ້າທີ່ຮັບຜິດຊອບເພີ່ມ (ຖ້າມີ)', 'ຄວາມຮູ້ດ້ານວິຊາສະເພາະ', 'ຄວາມຮູ້ນຳໃຊ້ເຄື່ອງມືເທັກໂນໂລຊີທັນສະໄໝ (AI)']
+  iTemplate: ['ໜ້າທີ່ຮັບຜິດຊອບ', 'ໜ້າທີ່ຮັບຜິດຊອບເພີ່ມ (ຖ້າມີ)', 'ຄວາມຮູ້ດ້ານວິຊາສະເພາະ', 'ຄວາມຮູ້ນຳໃຊ້ເຄື່ອງມືດ້ານເທັກໂນໂລຊີທັນສະໄຫມເຂົ້າໃນການເຮັດວຽກ (AI)']
 };
 
 const GRADES = [[95, 'A', 'ຜົນງານເກີນເປົ້າໝາຍ'], [85, 'B', 'ບັນລຸເປົ້າໝາຍຄົບຖ້ວນ'], [75, 'C', 'ຢູ່ໃນເກນມາດຕະຖານ (ຕ້ອງພັດທະນາຕື່ມ)'],
@@ -221,20 +221,20 @@ function kpiSubmit(X, u, req) {
   if (!k || k.status !== 'draft') throw E('ບໍ່ມີ KPI ຮ່າງ ໃຫ້ສົ່ງ');
   const need = X.cfg.groups[e.group].w[0], sum = k.items.reduce((s, it) => s + it.w, 0);
   if (Math.abs(sum - need) > 1e-9) throw E(`ນ້ຳໜັກລວມຕ້ອງ = ${need}% (ດຽວນີ້ ${sum}%)`);
-  k.status = 'ack'; hist(X, k, u, 'ສົ່ງໃຫ້ພະນັກງານຮັບຮູ້');
+  k.status = 'hr'; hist(X, k, u, 'ສົ່ງໃຫ້ HR ກວດ');
 }
 function kpiAck(X, u, req) {
-  const { k } = kpiFor(X, u, u.code, false);
+  const { e, k } = kpiFor(X, u, u.code, false);
   if (!k || k.status !== 'ack') throw E('ບໍ່ມີ KPI ລໍຖ້າຮັບຮູ້');
   if (!req.ok && !String(req.msg || '').trim()) throw E('ກະລຸນາຂຽນເຫດຜົນທີ່ຂໍສົນທະນາ');
-  k.status = req.ok ? 'hr' : 'draft';
+  k.status = req.ok ? (X.approverOf(e) ? 'appr' : afterAppr(X)) : 'draft';
   hist(X, k, u, req.ok ? 'ຮັບຮູ້' : 'ຂໍສົນທະນາ', req.msg);
 }
 function kpiHr(X, u, req) {
   X.need(X.can(u, 'kpiReview'));
-  const { e, k } = kpiFor(X, u, req.emp, false);
+  const { k } = kpiFor(X, u, req.emp, false);
   if (!k || k.status !== 'hr') throw E('KPI ນີ້ບໍ່ໄດ້ລໍຖ້າ HR ກວດ');
-  decide(X, u, k, req.ok, req.msg, X.approverOf(e) ? 'appr' : afterAppr(X));
+  decide(X, u, k, req.ok, req.msg, 'ack');
 }
 function kpiAppr(X, u, req) {
   const { e, k } = kpiFor(X, u, req.emp, false);
@@ -486,7 +486,7 @@ function pub(s, full) {
 function canSeeKpi(X, u, k) {
   const e = X.by(k.emp);
   if (!e) return false;
-  return X.can(u, 'kpiReview') || X.can(u, 'results') || (k.emp === u.code && k.status !== 'draft') || e.sup === u.code ||
+  return X.can(u, 'kpiReview') || X.can(u, 'results') || (k.emp === u.code && !['draft', 'hr'].includes(k.status)) || e.sup === u.code ||
     (X.approverOf(e) === u.code && ['appr', 'pres', 'ok'].includes(k.status)) ||
     (X.can(u, 'kpiFinal') && ['pres', 'ok'].includes(k.status));
 }

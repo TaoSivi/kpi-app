@@ -9,7 +9,9 @@ fs.writeFileSync(path.join(__dirname, 'dist', 'Code.gs'), gs, 'utf8');
 
 const font = fs.readFileSync(path.join(__dirname, 'src', 'fonts', 'PhetsarathOT.ttf')).toString('base64');
 const css = `@font-face{font-family:"Phetsarath OT";font-weight:400 700;font-display:block;src:url(data:font/ttf;base64,${font}) format("truetype")}\n` + src('styles.css');
-const js = "'use strict';\n" + join(['scoring.js', 'seed.js', 'server.js', 'store-demo.js', 'app.js']);
+const b64 = f => fs.readFileSync(path.join(__dirname, 'src', 'assets', f)).toString('base64');
+const lh = `const LETTERHEAD = { top: 'data:image/jpeg;base64,${b64('lh-top.jpg')}', bot: 'data:image/jpeg;base64,${b64('lh-bot.jpg')}' };\n`;
+const js = "'use strict';\n" + lh + join(['scoring.js', 'seed.js', 'server.js', 'store-demo.js', 'app.js']);
 if (/<\/script/i.test(js)) throw new Error('JS ມີ </script> — ຕ້ອງ escape');
 const html = src('index.html').replace('/*CSS*/', () => css).replace('/*JS*/', () => js);
 fs.writeFileSync(path.join(__dirname, 'dist', 'index.html'), html, 'utf8');

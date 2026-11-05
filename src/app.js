@@ -16,7 +16,7 @@
     none: ['ຍັງບໍ່ໄດ້ຕັ້ງ', 'grey'], draft: ['ຮ່າງ', 'grey'], ack: ['ລໍຖ້າພະນັກງານຮັບຮູ້', 'warn'], hr: ['ລໍຖ້າ HR ກວດ', 'warn'],
     appr: ['ລໍຖ້າຜູ້ອະນຸມັດ', 'warn'], pres: ['ລໍຖ້າປະທານ', 'warn'], ok: ['ອະນຸມັດແລ້ວ', 'ok']
   };
-  const KPI_STEPS = [['draft', 'ຫົວໜ້າຕັ້ງ'], ['ack', 'ພະນັກງານຮັບຮູ້'], ['hr', 'HR ກວດ'], ['appr', 'ຜູ້ອະນຸມັດ'], ['pres', 'ປະທານ'], ['ok', 'ອະນຸມັດແລ້ວ']];
+  const KPI_STEPS = [['draft', 'ຫົວໜ້າຕັ້ງ'], ['hr', 'HR ກວດ'], ['ack', 'ພະນັກງານຮັບຮູ້'], ['appr', 'ຜູ້ອະນຸມັດ'], ['pres', 'ປະທານ'], ['ok', 'ອະນຸມັດແລ້ວ']];
   const ROUND_ST = { setup: 'ໄລຍະຕັ້ງ KPI', eval: 'ໄລຍະປະເມີນ', closed: 'ປິດຮອບແລ້ວ', published: 'ປະກາດຜົນແລ້ວ' };
   const RATE = ['ອ່ອນ', 'ຄວນປັບປຸງ', 'ພໍໃຊ້', 'ດີ', 'ດີເລີດ'];
   const BADGE = { 1: '①', 2: '②', 3: '③', 4: '④' };
@@ -271,7 +271,7 @@
           <label class="f"><span>ນ້ຳໜັກ %</span><input class="in" type="number" inputmode="decimal" min="1" max="100" data-kf="w" data-i="${i}" value="${esc(it.w)}"></label></div>
         <button class="icon-btn" data-act="kpiDel" data-i="${i}" aria-label="ລຶບຕົວຊີ້ວັດ ${i + 1}" title="ລຶບ">${ic('trash')}</button></div>`).join('');
       h += `<button class="btn block" data-act="kpiAdd" style="margin-bottom:16px" ${A.kedit.items.length >= 10 ? 'disabled' : ''}>+ ເພີ່ມຕົວຊີ້ວັດ</button>
-        <div class="fbar kbar no-print"><div id="wsum" class="wsum"></div><div class="kbtns"><button class="btn" data-act="kpiSave">ບັນທຶກຮ່າງ</button><button class="btn pri" data-act="kpiSubmit">ສົ່ງໃຫ້ ${esc(e.name)} ຮັບຮູ້</button></div></div>`;
+        <div class="fbar kbar no-print"><div id="wsum" class="wsum"></div><div class="kbtns"><button class="btn" data-act="kpiSave">ບັນທຶກຮ່າງ</button><button class="btn pri" data-act="kpiSubmit">ສົ່ງໃຫ້ HR ກວດ</button></div></div>`;
       A.after = updWsum;
     } else if (!k) {
       h += `<div class="card"><p>ຍັງບໍ່ໄດ້ຕັ້ງ KPI. ຫົວໜ້າ (${esc(nm(e.sup))}) ເປັນຜູ້ຕັ້ງ.</p></div>`;
@@ -427,13 +427,15 @@
   function resBody(r) {
     const g = G(r.group), sp = g.split, P = r.parts;
     const part = (k, t) => sp[k] ? `<tr><td style="padding-left:20px">${t} (${sp[k]}%)</td><td></td><td class="n">${P[k] != null ? f1d(P[k]) + '%' : (r.few[k] ? '<span class="muted">ຂໍ້ມູນໜ້ອຍເກີນໄປ</span>' : '<span class="muted">ບໍ່ມີຂໍ້ມູນ</span>')}</td></tr>` : '';
+    const listRows = (key, names) => names.map((n, i) => `<tr><td style="padding-left:20px">${esc(n)}</td><td></td><td class="n">${r.f1 && r.f1[key] && r.f1[key][i] != null ? r.f1[key][i] + '/5' : '—'}</td></tr>`).join('');
     let h = `<div class="scroll"><table class="tbl"><thead><tr><th>ດ້ານ</th><th class="n">ນ້ຳໜັກ</th><th class="n">ຄະແນນ</th></tr></thead><tbody>
       <tr><td><b>I. ວຽກງານວິຊາສະເພາະ</b></td><td class="n">${g.w[0]}%</td><td class="n"><b>${f1d(r.I)}</b></td></tr>
       ${r.items.map((it, i) => `<tr><td style="padding-left:20px">${esc(it.t)}</td><td class="n">${it.w}%</td><td class="n">${r.f1 ? r.f1.i[i] + '%' : '—'}</td></tr>`).join('')}
       <tr><td><b>II. ${esc(g.iiName)}</b></td><td class="n">${g.w[1]}%</td><td class="n"><b>${f1d(r.II)}</b></td></tr>
       ${part('sup', 'ຫົວໜ້າສາຍງານ')}${part('sub', 'ລູກນ້ອງ')}${part('peer', 'ເພື່ອນຮ່ວມງານ')}${part('sac', 'ຄວາມເສຍສະຫຼະ')}
       <tr><td><b>III. ລະບຽບວິໄນ</b></td><td class="n">${g.w[2]}%</td><td class="n"><b>${f1d(r.III)}</b></td></tr>
-      ${g.w[3] ? `<tr><td><b>IV. ເສດຖະກິດ ການເມືອງ-ສັງຄົມ</b></td><td class="n">${g.w[3]}%</td><td class="n"><b>${f1d(r.IV)}</b></td></tr>` : ''}
+      ${listRows('iii', g.iii)}
+      ${g.w[3] ? `<tr><td><b>IV. ເສດຖະກິດ ການເມືອງ-ສັງຄົມ</b></td><td class="n">${g.w[3]}%</td><td class="n"><b>${f1d(r.IV)}</b></td></tr>${listRows('iv', g.iv)}` : ''}
       <tr><td><b>ລວມ</b></td><td class="n">100%</td><td class="n"><b>${r.total == null ? '—' : f1d(r.total) + '%'}</b></td></tr></tbody></table></div>`;
     if (r.redistributed) h += `<p class="muted small">ໝາຍເຫດ: ບາງແຫຼ່ງໃນດ້ານ II ບໍ່ມີຄົນປະເມີນ — ນ້ຳໜັກຂອງແຫຼ່ງນັ້ນ ແບ່ງໃຫ້ແຫຼ່ງອື່ນຕາມສັດສ່ວນ.</p>`;
     if (r.f1) h += ['str', 'imp', 'cmt'].filter(t => r.f1[t]).map(t => `<p><b>${TEXT_T[t]}:</b> ${esc(r.f1[t])}</p>`).join('');
@@ -452,12 +454,12 @@
     const r = A.B.results.find(x => x.emp === emp), e = S(emp);
     if (!r || !e) return notFound();
     return `<div class="no-print row" style="margin-bottom:12px"><a class="back grow" href="#res/${esc(emp)}">← ກັບຄືນ</a><button class="btn pri" data-act="print">${ic('print')} ພິມ</button></div>
-      <div class="card"><div style="text-align:center"><b>${esc(A.B.config.orgName || '')}</b><h2 style="margin-top:6px">ແບບຟອມປະເມີນຜົນການປະຕິບັດວຽກ (KPI)</h2>
+      <div class="card"><img class="lh top" src="${LETTERHEAD.top}" alt="LaoTai Group"><div style="text-align:center"><h2 style="margin-top:10px">ແບບຟອມປະເມີນຜົນການປະຕິບັດວຽກ (KPI)</h2>
       <p>${esc(A.B.round.name)}</p></div>
       <p>ຊື່ ແລະ ນາມສະກຸນ: <b>${esc(e.name)}</b> &nbsp; ລະຫັດ: ${esc(e.code)}<br>ຕຳແໜ່ງ: ${esc(e.pos)} &nbsp; ພະແນກ: ${esc(e.dept)} &nbsp; ກຸ່ມ: ${esc(G(e.group).name)}</p>
       ${resBody(r)}
       <p><b>ຜົນການປະເມີນ:</b> ${r.total == null ? '—' : f1d(r.total) + '%'} ${r.grade ? '— ລະດັບ ' + r.grade + ' (' + esc(gradeText(r.grade)) + ')' : ''}</p>
-      <div class="sign"><div>ຫົວໜ້າສາຍງານ<br>(ຜູ້ປະເມີນ)<br><br>${esc(nm(e.sup))}</div><div>ຫົວໜ້າ HR</div><div>ພະນັກງານ<br>(ຜູ້ຮັບການປະເມີນ)<br><br>${esc(e.name)}</div></div></div>`;
+      <div class="sign"><div>ຫົວໜ້າສາຍງານ<br>(ຜູ້ປະເມີນ)<br><br>${esc(nm(e.sup))}</div><div>ຫົວໜ້າ HR</div><div>ພະນັກງານ<br>(ຜູ້ຮັບການປະເມີນ)<br><br>${esc(e.name)}</div></div><img class="lh bot" src="${LETTERHEAD.bot}" alt=""></div>`;
   }
 
   // ---------- HR ----------
@@ -795,7 +797,7 @@
       if (submit !== true) { A.kedit = null; toast('ບັນທຶກຮ່າງແລ້ວ', 'ok'); return render(); }
       const r2 = await call('kpiSubmit', { emp }, { noRender: true });
       A.kedit = null;
-      if (r2.ok) { toast('ສົ່ງໃຫ້ພະນັກງານຮັບຮູ້ແລ້ວ', 'ok'); go('#home'); } else render();
+      if (r2.ok) { toast('ສົ່ງໃຫ້ HR ກວດແລ້ວ', 'ok'); go('#home'); } else render();
     },
     kpiSubmit(el) {
       const e = S(A.kedit.emp), need = G(e.group).w[0], sum = A.kedit.items.reduce((s, it) => s + (Number(it.w) || 0), 0);

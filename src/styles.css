@@ -385,3 +385,7 @@ a.card:hover { border-color: var(--line-2); box-shadow: 0 12px 26px -16px rgba(1
 .quick button { min-width: 44px; }
 .fbar > .btn { max-width: 260px; }
 @media (max-width: 479px) { .fbar > .btn { max-width: none; } }
+
+/* letterhead on the printed KPI form (from the company manual) */
+.lh { display: block; width: 100%; height: auto; }
+.lh.bot { margin-top: 22px; }
