@@ -6,7 +6,7 @@ function doPost(e) {
   return ContentService.createTextOutput(JSON.stringify(out)).setMimeType(ContentService.MimeType.JSON);
 }
 function doGet() {
-  return ContentService.createTextOutput(JSON.stringify({ ok: true, app: 'kpi' })).setMimeType(ContentService.MimeType.JSON);
+  return ContentService.createTextOutput(JSON.stringify({ ok: true, app: 'kpi', rev: 'manual-order-1' })).setMimeType(ContentService.MimeType.JSON);
 }
 
 // ແລ່ນ 1 ເທື່ອ ຫຼັງວາງໂຄ້ດ: ສ້າງ tabs, salt, ແລະ ບັນຊີ HR ທຳອິດ (PIN ສະແດງໃນ Execution log)
