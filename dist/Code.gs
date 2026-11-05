@@ -96,11 +96,20 @@ if (typeof module !== 'undefined') module.exports = { DEFAULT_CONFIG, GRADES, pc
 // store = {load, save(db, tables), hash, now, uuid, lock(fn)}
 const SC = typeof require !== 'undefined' && typeof module !== 'undefined'
   ? require('./scoring.js') : { DEFAULT_CONFIG, score, hasSub, validateConfig };
-const TABLES = ['staff', 'rounds', 'kpi', 'peers', 'answers', 'sessions', 'results'];
+const TABLES = ['staff', 'rounds', 'kpi', 'peers', 'answers', 'sessions', 'results', 'roles'];
 const ROUND_FLOW = { setup: ['eval'], eval: ['setup', 'closed'], closed: ['eval', 'published'], published: ['closed'] };
-const ROLES = ['HR', 'PRESIDENT'];
+// ສິດທີ່ Admin ກຳນົດໃຫ້ແຕ່ລະບົດບາດໄດ້. ADMIN ມີທຸກສິດ ແລະ ແກ້ໄຂບໍ່ໄດ້.
+const PERMS = ['staff', 'roles', 'round', 'peers', 'config', 'kpiReview', 'kpiFinal', 'progress', 'results'];
+const DEFAULT_ROLES = [
+  { code: 'ADMIN', name: 'ຜູ້ດູແລລະບົບ (Admin)', perms: PERMS.slice() },
+  { code: 'HR', name: 'HR', perms: PERMS.filter(p => p !== 'roles' && p !== 'kpiFinal') },
+  { code: 'PRESIDENT', name: 'ປະທານ', perms: ['kpiFinal'] }
+];
 const clone = o => JSON.parse(JSON.stringify(o));
 
+function permsOf(s, roles) {
+  return new Set((s.roles || []).flatMap(c => (roles.find(r => r.code === c) || { perms: [] }).perms));
+}
 function E(msg) { const e = new Error(msg); e.user = true; return e; }
 const NOAUTH = 'ກະລຸນາເຂົ້າລະບົບໃໝ່';
 const NOPERM = 'ທ່ານບໍ່ມີສິດເຮັດລາຍການນີ້';
@@ -113,6 +122,9 @@ function handle(req, store) {
 function run(req, store) {
   const db = store.load();
   for (const k of TABLES) db[k] = db[k] || [];
+  if (!db.roles.length) db.roles = clone(DEFAULT_ROLES);
+  const adm = db.roles.find(r => r.code === 'ADMIN');
+  if (adm) adm.perms = PERMS.slice(); else db.roles.unshift(clone(DEFAULT_ROLES[0]));
   const X = ctx(db, db.config || clone(SC.DEFAULT_CONFIG), store);
   if (req.a === 'login') return login(X, req);
   const fn = ACTIONS[req.a];
@@ -129,9 +141,14 @@ function ctx(db, cfg, store) {
   X.active = () => db.staff.filter(s => s.active !== false);
   X.evaluated = s => !!s && s.active !== false && !!cfg.groups[s.group];
   X.subs = code => X.active().filter(s => s.sup === code);
-  X.isHR = u => (u.roles || []).includes('HR');
-  X.isPres = u => (u.roles || []).includes('PRESIDENT');
-  X.pres = () => X.active().find(X.isPres);
+  // bootstrap: ຖ້າບໍ່ມີໃຜມີສິດ "ກຳນົດສິດ", ຄົນທີ່ມີສິດ "ຈັດການພະນັກງານ" ໄດ້ສິດນັ້ນ (ກັນລັອກຕົນເອງອອກ)
+  X.perms = u => {
+    const p = permsOf(u, db.roles);
+    if (!p.has('roles') && p.has('staff') && !X.active().some(s => permsOf(s, db.roles).has('roles'))) p.add('roles');
+    return p;
+  };
+  X.can = (u, p) => X.perms(u).has(p);
+  X.pres = () => X.active().find(s => X.can(s, 'kpiFinal'));
   X.approverOf = e => { if (e.appr) return e.appr; const s = X.by(e.sup); return (s && s.sup) || null; };
   X.openRound = () => db.rounds.find(r => r.status === 'setup' || r.status === 'eval');
   X.round = id => (id && db.rounds.find(r => r.id === id)) || X.openRound() || db.rounds[db.rounds.length - 1] || null;
@@ -214,7 +231,7 @@ function kpiAck(X, u, req) {
   hist(X, k, u, req.ok ? 'ຮັບຮູ້' : 'ຂໍສົນທະນາ', req.msg);
 }
 function kpiHr(X, u, req) {
-  X.need(X.isHR(u));
+  X.need(X.can(u, 'kpiReview'));
   const { e, k } = kpiFor(X, u, req.emp, false);
   if (!k || k.status !== 'hr') throw E('KPI ນີ້ບໍ່ໄດ້ລໍຖ້າ HR ກວດ');
   decide(X, u, k, req.ok, req.msg, X.approverOf(e) ? 'appr' : afterAppr(X));
@@ -226,7 +243,7 @@ function kpiAppr(X, u, req) {
   decide(X, u, k, req.ok, req.msg, afterAppr(X));
 }
 function kpiPres(X, u, req) {
-  X.need(X.isPres(u));
+  X.need(X.can(u, 'kpiFinal'));
   for (const emp of req.emps || []) {
     const { k } = kpiFor(X, u, emp, false);
     if (!k || k.status !== 'pres') throw E('KPI ບາງລາຍການບໍ່ໄດ້ລໍຖ້າປະທານ');
@@ -234,7 +251,7 @@ function kpiPres(X, u, req) {
   }
 }
 function kpiUnlock(X, u, req) {
-  X.need(X.isHR(u));
+  X.need(X.can(u, 'kpiReview'));
   const { r, e, k } = kpiFor(X, u, req.emp, false);
   if (!k || k.status === 'draft') throw E('KPI ນີ້ເປັນຮ່າງຢູ່ແລ້ວ');
   if (X.subAns(r.id, 1, e.code).length) throw E('ຟອມ ① ຂອງຄົນນີ້ສົ່ງແລ້ວ — ຕ້ອງເປີດຄືນຟອມ ① ກ່ອນ');
@@ -281,7 +298,7 @@ function answerSubmit(X, u, req) {
   X.ch.add('answers');
 }
 function answerReopen(X, u, req) {
-  X.need(X.isHR(u));
+  X.need(X.can(u, 'progress'));
   const a = X.db.answers.find(x => x.id === req.id);
   if (!a) throw E('ບໍ່ພົບຟອມ');
   const r = X.db.rounds.find(x => x.id === a.round);
@@ -308,7 +325,7 @@ function mask(res) {
 
 // ---------- round / staff / peers / config (HR) ----------
 function roundCreate(X, u, req) {
-  X.need(X.isHR(u));
+  X.need(X.can(u, 'round'));
   if (X.openRound()) throw E('ຍັງມີຮອບທີ່ເປີດຢູ່ — ປິດກ່ອນຈຶ່ງສ້າງຮອບໃໝ່');
   const name = String(req.name || '').trim().slice(0, 60);
   if (!name) throw E('ກະລຸນາໃສ່ຊື່ຮອບ');
@@ -322,7 +339,7 @@ function roundCreate(X, u, req) {
   }
 }
 function roundStatus(X, u, req) {
-  X.need(X.isHR(u));
+  X.need(X.can(u, 'round'));
   const r = X.db.rounds.find(x => x.id === req.id);
   if (!r) throw E('ບໍ່ພົບຮອບ');
   if (!(ROUND_FLOW[r.status] || []).includes(req.status)) throw E('ປ່ຽນສະຖານະແບບນີ້ບໍ່ໄດ້');
@@ -346,11 +363,11 @@ function cleanStaff(X, row, old) {
   const t = v => String(v || '').trim().slice(0, 100), up = v => t(v).toUpperCase();
   return Object.assign({ pin: '', fails: 0, lockUntil: 0 }, old || {}, {
     code, name, group, dept: t(row.dept), div: t(row.div), pos: t(row.pos), sup: up(row.sup), appr: up(row.appr),
-    roles: (Array.isArray(row.roles) ? row.roles : String(row.roles || '').split(/[,\s]+/)).map(x => String(x).toUpperCase()).filter(x => ROLES.includes(x)),
+    roles: (Array.isArray(row.roles) ? row.roles : String(row.roles || '').split(/[,\s]+/)).map(x => String(x).toUpperCase()).filter(x => X.db.roles.some(r => r.code === x)),
     active: row.active !== false && row.active !== 'false'
   });
 }
-function checkStaff(list) {
+function checkStaff(list, roles) {
   const by = new Map(list.map(s => [s.code, s]));
   if (by.size !== list.length) throw E('ມີລະຫັດພະນັກງານຊ້ຳກັນ');
   for (const s of list) {
@@ -362,28 +379,30 @@ function checkStaff(list) {
     let c = s, n = 0;
     while (c && c.sup) { c = by.get(c.sup); if (c === s || ++n > list.length) throw E(`${s.code}: ສາຍບັງຄັບບັນຊາ ເປັນວົງວຽນ`); }
   }
-  if (!list.some(s => s.active && s.roles.includes('HR'))) throw E('ຕ້ອງມີ HR ຢ່າງໜ້ອຍ 1 ຄົນທີ່ໃຊ້ງານຢູ່');
+  if (!list.some(s => s.active !== false && ['roles', 'staff'].some(p => permsOf(s, roles).has(p))))
+    throw E('ຕ້ອງມີຢ່າງໜ້ອຍ 1 ຄົນທີ່ໃຊ້ງານຢູ່ ທີ່ມີສິດ Admin ຫຼື HR (ຈັດການພະນັກງານ)');
 }
-function upsertStaff(X, rows) {
-  const list = X.db.staff.slice();
+function upsertStaff(X, u, rows) {
+  const list = X.db.staff.slice(), canRoles = X.can(u, 'roles'), key = r => (r || []).slice().sort().join(',');
   for (const row of rows) {
     const code = String(row.code || '').trim().toUpperCase();
     const i = list.findIndex(s => s.code === code);
     const s = cleanStaff(X, row, i >= 0 ? list[i] : null);
+    if (!canRoles && key(s.roles) !== key(i >= 0 ? list[i].roles : [])) throw E(code + ': ການປ່ຽນບົດບາດ ຕ້ອງມີສິດ "ກຳນົດສິດ"');
     if (i >= 0) list[i] = s; else list.push(s);
   }
-  checkStaff(list);
+  checkStaff(list, X.db.roles);
   X.db.staff = list; X.ch.add('staff');
 }
-function staffSave(X, u, req) { X.need(X.isHR(u)); upsertStaff(X, [req.row || {}]); }
+function staffSave(X, u, req) { X.need(X.can(u, 'staff')); upsertStaff(X, u, [req.row || {}]); }
 function staffImport(X, u, req) {
-  X.need(X.isHR(u));
+  X.need(X.can(u, 'staff'));
   if (!Array.isArray(req.rows) || !req.rows.length) throw E('ບໍ່ມີຂໍ້ມູນ');
-  upsertStaff(X, req.rows);
+  upsertStaff(X, u, req.rows);
 }
 // req = {code, pin} ຫຼື {list:[{code, pin}]} (ທັງຊຸດ ສຳເລັດ ຫຼື ລົ້ມເຫຼວພ້ອມກັນ)
 function setPin(X, u, req) {
-  X.need(X.isHR(u));
+  X.need(X.can(u, 'staff'));
   for (const it of req.list || [req]) setOnePin(X, it);
 }
 function setOnePin(X, req) {
@@ -396,7 +415,7 @@ function setOnePin(X, req) {
 }
 // req = {emp, peers} ຫຼື {list:[{emp, peers}]}
 function peerSet(X, u, req) {
-  X.need(X.isHR(u));
+  X.need(X.can(u, 'peers'));
   const r = X.openRound();
   if (!r) throw E('ບໍ່ມີຮອບປະເມີນທີ່ເປີດຢູ່');
   for (const it of req.list || [req]) peerSetOne(X, r, it);
@@ -418,7 +437,7 @@ function peerSetOne(X, r, req) {
   X.ch.add('peers');
 }
 function configSave(X, u, req) {
-  X.need(X.isHR(u));
+  X.need(X.can(u, 'config'));
   if (X.db.rounds.some(r => r.status === 'eval')) throw E('ກຳລັງປະເມີນຢູ່ — ແກ້ການຕັ້ງຄ່າບໍ່ໄດ້');
   const n = req.config || {}, cfg = clone(X.cfg), strs = a => (Array.isArray(a) ? a : []).map(s => String(s).trim()).filter(Boolean);
   for (const [k, g] of Object.entries(cfg.groups)) {
@@ -435,6 +454,27 @@ function configSave(X, u, req) {
   if (errs.length) throw E(errs.join('\n'));
   X.db.config = cfg; X.cfg = cfg; X.ch.add('config');
 }
+function roleSave(X, u, req) {
+  X.need(X.can(u, 'roles'));
+  const r = req.role || {}, code = String(r.code || '').trim().toUpperCase();
+  if (!/^[A-Z0-9_]{2,20}$/.test(code)) throw E('ລະຫັດບົດບາດ ຕ້ອງເປັນຕົວອັກສອນອັງກິດ ຫຼື ຕົວເລກ 2–20 ຕົວ');
+  if (code === 'ADMIN') throw E('ບົດບາດ Admin ມີທຸກສິດສະເໝີ — ແກ້ໄຂບໍ່ໄດ້');
+  const name = String(r.name || '').trim().slice(0, 60);
+  if (!name) throw E('ກະລຸນາໃສ່ຊື່ບົດບາດ');
+  const row = { code, name, perms: [...new Set((r.perms || []).filter(p => PERMS.includes(p)))] };
+  const i = X.db.roles.findIndex(x => x.code === code), next = X.db.roles.slice();
+  if (i >= 0) next[i] = row; else next.push(row);
+  checkStaff(X.db.staff, next);
+  X.db.roles = next; X.ch.add('roles');
+}
+function roleDelete(X, u, req) {
+  X.need(X.can(u, 'roles'));
+  const code = String(req.code || '').toUpperCase();
+  if (code === 'ADMIN') throw E('ລຶບບົດບາດ Admin ບໍ່ໄດ້');
+  if (!X.db.roles.some(r => r.code === code)) throw E('ບໍ່ພົບບົດບາດ');
+  if (X.db.staff.some(s => (s.roles || []).includes(code))) throw E('ຍັງມີພະນັກງານໃຊ້ບົດບາດນີ້ — ເອົາອອກຈາກພະນັກງານກ່ອນ');
+  X.db.roles = X.db.roles.filter(r => r.code !== code); X.ch.add('roles');
+}
 function logout(X, u, req) { X.db.sessions = X.db.sessions.filter(s => s.t !== req.t); X.ch.add('sessions'); }
 
 // ---------- boot: ທຸກຢ່າງທີ່ຜູ້ໃຊ້ຄົນນີ້ມີສິດເຫັນ ----------
@@ -446,9 +486,9 @@ function pub(s, full) {
 function canSeeKpi(X, u, k) {
   const e = X.by(k.emp);
   if (!e) return false;
-  return X.isHR(u) || (k.emp === u.code && k.status !== 'draft') || e.sup === u.code ||
+  return X.can(u, 'kpiReview') || X.can(u, 'results') || (k.emp === u.code && k.status !== 'draft') || e.sup === u.code ||
     (X.approverOf(e) === u.code && ['appr', 'pres', 'ok'].includes(k.status)) ||
-    (X.isPres(u) && ['pres', 'ok'].includes(k.status));
+    (X.can(u, 'kpiFinal') && ['pres', 'ok'].includes(k.status));
 }
 function duties(X, u, r) {
   const D = [];
@@ -459,9 +499,9 @@ function duties(X, u, r) {
   if (own && own.status === 'ack') D.push({ kind: 'kpiAck', emp: u.code, done: false });
   for (const k of X.db.kpi.filter(k => k.round === r.id)) {
     const e = X.by(k.emp); if (!X.evaluated(e)) continue;
-    if (k.status === 'hr' && X.isHR(u)) D.push({ kind: 'kpiHr', emp: e.code, done: false });
+    if (k.status === 'hr' && X.can(u, 'kpiReview')) D.push({ kind: 'kpiHr', emp: e.code, done: false });
     if (k.status === 'appr' && X.approverOf(e) === u.code) D.push({ kind: 'kpiAppr', emp: e.code, done: false });
-    if (k.status === 'pres' && X.isPres(u)) D.push({ kind: 'kpiPres', emp: e.code, done: false });
+    if (k.status === 'pres' && X.can(u, 'kpiFinal')) D.push({ kind: 'kpiPres', emp: e.code, done: false });
   }
   if (r.status === 'eval') {
     const mine = (f, emp) => X.db.answers.some(a => a.round === r.id && a.form === f && a.emp === emp && a.by === u.code && a.status === 'sub');
@@ -478,14 +518,16 @@ function duties(X, u, r) {
   return D;
 }
 function boot(X, u, req) {
-  const r = X.round(req.round), hr = X.isHR(u);
+  const r = X.round(req.round), P = X.perms(u), full = P.has('staff') || P.has('roles');
+  const hr = ['progress', 'peers', 'staff', 'round'].some(p => P.has(p));
   const evals = X.active().filter(X.evaluated);
   let results = [];
-  if (r && hr) results = evals.map(e => result(X, r, e));
+  if (r && P.has('results')) results = evals.map(e => result(X, r, e));
   else if (r && r.status === 'published')
     results = evals.filter(e => e.code === u.code || e.sup === u.code).map(e => mask(result(X, r, e)));
   const out = {
-    me: pub(u, true), staff: (hr ? X.db.staff : X.active()).map(s => pub(s, hr)), config: X.cfg,
+    me: Object.assign(pub(u, true), { perms: [...P] }), staff: (full ? X.db.staff : X.active()).map(s => pub(s, full)), config: X.cfg,
+    roles: X.db.roles,
     rounds: X.db.rounds, round: r,
     kpi: r ? X.db.kpi.filter(k => k.round === r.id && canSeeKpi(X, u, k)) : [],
     duties: duties(X, u, r),
@@ -496,7 +538,7 @@ function boot(X, u, req) {
   if (hr && r) {
     out.hr = {
       peers: X.db.peers.filter(p => p.round === r.id),
-      answers: X.db.answers.filter(a => a.round === r.id).map(a => ({ id: a.id, form: a.form, emp: a.emp, by: a.by, status: a.status, at: a.at })),
+      answers: !P.has('progress') ? [] : X.db.answers.filter(a => a.round === r.id).map(a => ({ id: a.id, form: a.form, emp: a.emp, by: a.by, status: a.status, at: a.at })),
       progress: evals.map(e => {
         const assigned = X.db.peers.filter(p => p.round === r.id && p.emp === e.code).map(p => p.by);
         const k = X.kpi(r.id, e.code);
@@ -515,7 +557,7 @@ function boot(X, u, req) {
 
 const ACTIONS = {
   boot: () => { }, logout, kpiSave, kpiSubmit, kpiAck, kpiHr, kpiAppr, kpiPres, kpiUnlock,
-  answerSubmit, answerReopen, staffSave, staffImport, setPin, roundCreate, roundStatus, peerSet, configSave
+  answerSubmit, answerReopen, staffSave, staffImport, setPin, roundCreate, roundStatus, peerSet, configSave, roleSave, roleDelete
 };
 
 if (typeof module !== 'undefined') module.exports = { handle };
@@ -531,10 +573,11 @@ const GS_TABS = {
   peers: ['ເພື່ອນ', ['round', 'emp', 'by'], ['ຮອບ', 'ຜູ້ຖືກປະເມີນ', 'ຜູ້ປະເມີນ']],
   answers: ['ຄຳຕອບ', ['id', 'round', 'form', 'emp', 'by', 'ans', 'status', 'at'], ['id', 'ຮອບ', 'ຟອມ', 'ຜູ້ຖືກປະເມີນ', 'ຜູ້ປະເມີນ', 'ຄຳຕອບ', 'ສະຖານະ', 'ເວລາ']],
   sessions: ['sessions', ['t', 'code', 'exp'], ['token', 'ລະຫັດ', 'ໝົດອາຍຸ']],
+  roles: ['ສິດ', ['code', 'name', 'perms'], ['ລະຫັດບົດບາດ', 'ຊື່ບົດບາດ', 'ສິດ']],
   results: ['ຜົນ', ['round', 'emp', 'name', 'dept', 'group', 'I', 'II', 'III', 'IV', 'total', 'grade'],
     ['ຮອບ', 'ລະຫັດ', 'ຊື່', 'ພະແນກ', 'ກຸ່ມ', 'ດ້ານ I', 'ດ້ານ II', 'ດ້ານ III', 'ດ້ານ IV', 'ລວມ %', 'ລະດັບ']]
 };
-const GS_JSON = ['roles', 'items', 'hist', 'ans'];
+const GS_JSON = ['roles', 'items', 'hist', 'ans', 'perms'];
 const GS_NUM = ['fails', 'lockUntil', 'at', 'form', 'exp', 'I', 'II', 'III', 'IV', 'total'];
 const GS_CONFIG_TAB = 'ຕັ້ງຄ່າ';
 

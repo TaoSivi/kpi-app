@@ -54,5 +54,11 @@ assert.equal(b.staff.find(s => s.code === 'HR001').active, true);
 assert.equal(sheets['ພະນັກງານ']._data()[0][0], 'ລະຫັດ');                  // Lao header row
 assert.equal(post({ a: 'kpiSave', t, emp: '007', items: [{ t: 'x', w: 75 }] }).ok, false); // HR is not 007's supervisor
 assert.equal(post({ a: 'nope', t }).ok, false);
+// HR001 (HR role) gets "roles" by bootstrap; a saved role round-trips through the ສິດ tab
+assert.ok(post({ a: 'boot', t }).boot.me.perms.includes('roles'));
+const rs = post({ a: 'roleSave', t, role: { code: 'HRASSIST', name: 'ຜູ້ຊ່ວຍ HR', perms: ['peers'] } });
+assert.equal(rs.ok, true, rs.err);
+assert.deepEqual(post({ a: 'boot', t }).boot.roles.find(r => r.code === 'HRASSIST').perms, ['peers']);
+assert.equal(sheets['ສິດ']._data()[0][0], 'ລະຫັດບົດບາດ');
 assert.equal(JSON.parse(ctx.doPost({ postData: { contents: '{bad' } }).body).ok, false);
 console.log('gas-smoke: all passed');

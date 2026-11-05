@@ -20,7 +20,18 @@
   const ROUND_ST = { setup: 'ໄລຍະຕັ້ງ KPI', eval: 'ໄລຍະປະເມີນ', closed: 'ປິດຮອບແລ້ວ', published: 'ປະກາດຜົນແລ້ວ' };
   const RATE = ['ອ່ອນ', 'ຄວນປັບປຸງ', 'ພໍໃຊ້', 'ດີ', 'ດີເລີດ'];
   const BADGE = { 1: '①', 2: '②', 3: '③', 4: '④' };
-  const ROLE_T = { HR: 'HR', PRESIDENT: 'ປະທານ' };
+  const ROLE_T = { ADMIN: 'Admin', HR: 'HR', PRESIDENT: 'ປະທານ' };
+  const PERM_T = {
+    staff: ['ຈັດການພະນັກງານ ແລະ PIN', 'ເພີ່ມ/ແກ້ລາຍຊື່, ນຳເຂົ້າຈາກ Excel, ຕັ້ງ PIN'],
+    roles: ['ກຳນົດສິດ ແລະ ບົດບາດ', 'ສ້າງບົດບາດ, ເລືອກສິດ, ມອບບົດບາດໃຫ້ພະນັກງານ'],
+    round: ['ຈັດການຮອບປະເມີນ', 'ສ້າງຮອບ, ເປີດປະເມີນ, ປິດຮອບ, ປະກາດຜົນ'],
+    peers: ['ກຳນົດເພື່ອນຮ່ວມງານ', 'ເລືອກຄົນທີ່ຈະປະເມີນຟອມ ③'],
+    config: ['ຕັ້ງຄ່ານ້ຳໜັກ ແລະ ຄຳຖາມ', 'ແກ້ນ້ຳໜັກ 4 ດ້ານ ແລະ ຄຳຖາມຂອງຟອມ'],
+    kpiReview: ['ກວດ KPI (ຂັ້ນ HR)', 'ຜ່ານ ຫຼື ສົ່ງກັບ KPI, ປົດລັອກ KPI'],
+    kpiFinal: ['ອະນຸມັດ KPI ສຸດທ້າຍ', 'ຂັ້ນປະທານ — ອະນຸມັດທັງໝົດໄດ້ດ້ວຍປຸ່ມດຽວ'],
+    progress: ['ເບິ່ງຄວາມຄືບໜ້າ', 'ເຫັນວ່າໃຜກອກຟອມໃດແລ້ວ, ເປີດຟອມຄືນໃຫ້ແກ້'],
+    results: ['ເບິ່ງຜົນທຸກຄົນ', 'ເບິ່ງຄະແນນ ແລະ ດາວໂຫຼດຜົນຂອງທຸກຄົນ']
+  };
   const ICONS = {
     list: '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4h6v3H9zM9 12h6M9 16h4"/>',
     chart: '<path d="M4 20V10M10 20V4M16 20v-7M21 20H3"/>',
@@ -48,8 +59,8 @@
   const nm = code => { const s = code && S(code); return s ? s.name : (code || '—'); };
   const G = code => A.B.config.groups[code];
   const me = () => A.B.me;
-  const isHR = () => me().roles.includes('HR');
-  const isPres = () => me().roles.includes('PRESIDENT');
+  const can = p => (me().perms || []).includes(p);
+  const roleName = c => ((A.B && A.B.roles || []).find(r => r.code === c) || {}).name || ROLE_T[c] || c;
   const kpiOf = emp => A.B.kpi.find(k => k.emp === emp);
   const chip = (t, c) => `<span class="chip ${c || ''}">${esc(t)}</span>`;
   const kchip = st => chip(...(KPI_ST[st] || KPI_ST.none));
@@ -93,11 +104,11 @@
       <div class="who"><div class="nm"><b>${esc(B.me.name)}</b><span>${esc(B.me.pos || '')}</span></div><div class="avatar" aria-hidden="true">${esc(initial(B.me.name))}</div></div>
       <button class="icon-btn" data-act="logout" aria-label="ອອກຈາກລະບົບ" title="ອອກຈາກລະບົບ">${ic('logout')}</button></div>`;
     const [cur, sub] = (location.hash.slice(1) || 'home').split('/');
-    const tabs = [['home', 'list', 'ວຽກຂອງຂ້ອຍ'], ['res', 'chart', 'ຜົນປະເມີນ']].concat(isHR() ? [['hr', 'gear', 'HR']] : []);
+    const tabs = [['home', 'list', 'ວຽກຂອງຂ້ອຍ'], ['res', 'chart', 'ຜົນປະເມີນ']].concat(hrTabs().length ? [['hr', 'gear', 'HR']] : []);
     const hrSub = { who: 'progress', import: 'staff', peer: 'peers' }[sub] || sub || 'progress';
     nav.innerHTML = `<a class="brand side-only" href="#home"><span class="mark">${ic('target')}</span>ປະເມີນ KPI</a><div class="sec side-only">ເມນູຫຼັກ</div>` +
       tabs.map(([h, i, t]) => `<a href="#${h}" class="${cur === h || (h === 'home' && ['kpi', 'form', 'pres'].includes(cur)) ? 'on' : ''}" ${cur === h ? 'aria-current="page"' : ''}>${ic(i)}<span>${t}</span></a>` +
-        (h === 'hr' ? HR_TABS.map(([k, tt]) => `<a href="#hr/${k}" class="sub side-only ${cur === 'hr' && hrSub === k ? 'on' : ''}">${tt}</a>`).join('') : '')).join('');
+        (h === 'hr' ? hrTabs().map(([k, tt]) => `<a href="#hr/${k}" class="sub side-only ${cur === 'hr' && hrSub === k ? 'on' : ''}">${tt}</a>`).join('') : '')).join('');
     bar.hidden = A.mode !== 'demo';
     if (A.mode === 'demo') {
       const opts = A.store.load().staff.map(s => `<option value="${esc(s.code)}" ${s.code === B.me.code ? 'selected' : ''}>${esc(s.name)} — ${esc(s.pos)}</option>`).join('');
@@ -123,7 +134,7 @@
     if (A.mode === 'demo') {
       demo = `<div class="card"><h3>ໂໝດທົດລອງ — ກົດເລືອກຄົນເພື່ອເຂົ້າ (PIN 1234)</h3>` +
         A.store.load().staff.map(s => `<div class="list-row" data-act="demoLogin" data-code="${esc(s.code)}"><div class="grow"><b>${esc(s.name)}</b>
-          <div class="muted">${esc(s.pos)} · ${esc(s.dept)}${(s.roles || []).map(r => ' · ' + ROLE_T[r]).join('')}</div></div><span class="chip">${esc(s.code)}</span></div>`).join('') + `</div>`;
+          <div class="muted">${esc(s.pos)} · ${esc(s.dept)}${(s.roles || []).map(r => ' · ' + (ROLE_T[r] || r)).join('')}</div></div><span class="chip">${esc(s.code)}</span></div>`).join('') + `</div>`;
     }
     return `<h1 style="margin-top:24px">ເຂົ້າລະບົບ</h1>
     <form class="card" data-submit="login">
@@ -158,7 +169,7 @@
   }
   function vHome() {
     const B = A.B, r = B.round;
-    if (!r) return `<div class="card"><h2>ຍັງບໍ່ມີຮອບປະເມີນ</h2><p>${isHR() ? '<a href="#hr/round">ສ້າງຮອບປະເມີນ</a>' : 'ລໍຖ້າ HR ເປີດຮອບປະເມີນ'}</p></div>`;
+    if (!r) return `<div class="card"><h2>ຍັງບໍ່ມີຮອບປະເມີນ</h2><p>${can('round') ? '<a href="#hr/round">ສ້າງຮອບປະເມີນ</a>' : 'ລໍຖ້າ HR ເປີດຮອບປະເມີນ'}</p></div>`;
     const pend = B.duties.filter(d => !d.done && d.kind !== 'kpiPres'), done = B.duties.filter(d => d.done);
     const pres = B.duties.filter(d => d.kind === 'kpiPres');
     const total = B.duties.filter(d => d.kind !== 'kpiPres').length;
@@ -183,7 +194,7 @@
     const own = kpiOf(B.me.code);
     if (own) h += `<a class="card duty" href="#kpi/${esc(B.me.code)}"><div class="badge">KPI</div><div class="grow"><div class="t">KPI ຂອງຂ້ອຍ</div>
       <div class="muted">${own.items.length} ຕົວຊີ້ວັດ</div></div>${kchip(own.status)}</a>`;
-    if (B.results.some(x => x.emp === B.me.code) && !isHR()) h += `<a class="card duty" href="#res/${esc(B.me.code)}"><div class="badge">${ic('chart')}</div><div class="grow"><div class="t">ຜົນປະເມີນຂອງຂ້ອຍ</div></div><span class="btn sm pri">ເບິ່ງ</span></a>`;
+    if (B.results.some(x => x.emp === B.me.code) && !can('results')) h += `<a class="card duty" href="#res/${esc(B.me.code)}"><div class="badge">${ic('chart')}</div><div class="grow"><div class="t">ຜົນປະເມີນຂອງຂ້ອຍ</div></div><span class="btn sm pri">ເບິ່ງ</span></a>`;
     if (done.length) h += `<details><summary>ເຮັດແລ້ວ (${done.length})</summary>${done.map(dutyCard).join('')}</details>`;
     return h;
   }
@@ -240,10 +251,10 @@
       <div class="btns"><button class="btn bad" data-act="kpiDecide" data-a="${a}" data-emp="${esc(e.code)}" data-ok="0">${noT}</button>
       <button class="btn ok" data-act="kpiDecide" data-a="${a}" data-emp="${esc(e.code)}" data-ok="1">${okT}</button></div></div>`;
     if (e.code === m.code && st === 'ack') return panel('ທ່ານເຫັນດີກັບ KPI ນີ້ບໍ?', 'kpiAck', 'ຮັບຮູ້ KPI', 'ຂໍສົນທະນາກັບຫົວໜ້າ');
-    if (isHR() && st === 'hr') return panel('HR ກວດ KPI', 'kpiHr', 'ຜ່ານການກວດ', 'ສົ່ງກັບໃຫ້ແກ້');
+    if (can('kpiReview') && st === 'hr') return panel('HR ກວດ KPI', 'kpiHr', 'ຜ່ານການກວດ', 'ສົ່ງກັບໃຫ້ແກ້');
     if (A.B.approvers[e.code] === m.code && st === 'appr') return panel('ອະນຸມັດ KPI', 'kpiAppr', 'ອະນຸມັດ', 'ສົ່ງກັບໃຫ້ແກ້');
-    if (isPres() && st === 'pres') return panel('ອະນຸມັດສຸດທ້າຍ', 'kpiPres', 'ອະນຸມັດ', 'ສົ່ງກັບໃຫ້ແກ້');
-    if (isHR() && st === 'ok' && openRound()) return `<button class="btn block" data-act="kpiUnlock" data-emp="${esc(e.code)}">ປົດລັອກ KPI ໃຫ້ແກ້ໄຂ (HR)</button>`;
+    if (can('kpiFinal') && st === 'pres') return panel('ອະນຸມັດສຸດທ້າຍ', 'kpiPres', 'ອະນຸມັດ', 'ສົ່ງກັບໃຫ້ແກ້');
+    if (can('kpiReview') && st === 'ok' && openRound()) return `<button class="btn block" data-act="kpiUnlock" data-emp="${esc(e.code)}">ປົດລັອກ KPI ໃຫ້ແກ້ໄຂ (HR)</button>`;
     if (st !== 'ok') return `<p class="muted">ສະຖານະ: ${KPI_ST[st][0]}${st === 'appr' ? ' (' + esc(nm(A.B.approvers[e.code])) + ')' : ''}</p>`;
     return '';
   }
@@ -343,7 +354,7 @@
 
   // ---------- results ----------
   function vResList() {
-    if (isHR()) return vHr('results');
+    if (can('results')) return vHr('results');
     const R = A.B.results;
     let h = `<h1>ຜົນປະເມີນ</h1>`;
     if (!R.length) return h + `<div class="card"><p>ຜົນຈະສະແດງຢູ່ນີ້ ຫຼັງຈາກ HR ປະກາດຜົນ.</p></div>`;
@@ -372,7 +383,7 @@
   }
   function vRes(emp) {
     const r = A.B.results.find(x => x.emp === emp);
-    const back = isHR() ? '#hr/results' : '#res';
+    const back = can('results') ? '#hr/results' : '#res';
     if (!r) return `<a class="back" href="${back}">← ກັບຄືນ</a><div class="card"><p>ຍັງບໍ່ມີຜົນ</p></div>`;
     return `<a class="back" href="${back}">← ກັບຄືນ</a><h1>${esc(r.name)}</h1><p class="muted">${esc(r.dept)} · ກຸ່ມ ${esc(G(r.group).name)} · ${esc(A.B.round.name)}</p>
       <div class="card"><div class="row">${gradeBox(r)}<div class="grow"><div class="big">${r.total == null ? '—' : f1d(r.total) + '%'}</div>
@@ -392,13 +403,18 @@
   }
 
   // ---------- HR ----------
-  const HR_TABS = [['progress', 'ຄວາມຄືບໜ້າ'], ['staff', 'ພະນັກງານ'], ['peers', 'ເພື່ອນຮ່ວມງານ'], ['results', 'ຜົນ'], ['round', 'ຮອບປະເມີນ'], ['config', 'ຕັ້ງຄ່າ']];
+  // [tab, ຊື່, ສິດທີ່ຕ້ອງມີ]
+  const HR_TABS = [['progress', 'ຄວາມຄືບໜ້າ', 'progress'], ['staff', 'ພະນັກງານ', 'staff'], ['roles', 'ສິດ ແລະ ໜ້າທີ່', 'roles'], ['peers', 'ເພື່ອນຮ່ວມງານ', 'peers'],
+    ['results', 'ຜົນ', 'results'], ['round', 'ຮອບປະເມີນ', 'round'], ['config', 'ຕັ້ງຄ່າ', 'config']];
+  const hrTabs = () => HR_TABS.filter(t => can(t[2]));
   function vHr(tab, arg) {
-    if (!isHR()) return notFound();
-    tab = tab || 'progress';
+    const tabs = hrTabs();
+    if (!tabs.length) return notFound();
+    tab = tab || tabs[0][0];
     const cur = { who: 'progress', import: 'staff', peer: 'peers' }[tab] || tab;
-    let h = `<h1>HR</h1><div class="tabs">${HR_TABS.map(([k, t]) => `<a href="#hr/${k}" class="${cur === k ? 'on' : ''}">${t}</a>`).join('')}</div>`;
-    const V = { progress: hrProgress, who: hrWho, staff: arg ? hrStaffEdit : hrStaff, import: hrImport, peers: hrPeers, peer: hrPeer, results: hrResults, round: hrRound, config: hrConfig }[tab];
+    if (!tabs.some(t => t[0] === cur)) return notFound();
+    let h = `<h1>HR</h1><div class="tabs">${tabs.map(([k, t]) => `<a href="#hr/${k}" class="${cur === k ? 'on' : ''}">${t}</a>`).join('')}</div>`;
+    const V = { progress: hrProgress, who: hrWho, staff: arg ? hrStaffEdit : hrStaff, import: hrImport, peers: hrPeers, peer: hrPeer, results: hrResults, round: hrRound, config: hrConfig, roles: arg ? hrRoleEdit : hrRoles }[tab];
     return h + (V ? V(arg) : '');
   }
   const evaluated = () => A.B.staff.filter(s => s.active !== false && G(s.group));
@@ -477,7 +493,7 @@
     } else if (noPin.length) h += `<div class="alert">ມີ ${noPin.length} ຄົນ ຍັງບໍ່ມີ PIN (ເຂົ້າລະບົບບໍ່ໄດ້). <button class="link" data-act="pinsGen">ສ້າງ PIN ໃຫ້ທັງໝົດ</button></div>`;
     h += `<input class="in" id="hr-q" placeholder="ຄົ້ນຫາ ຊື່ / ລະຫັດ / ພະແນກ" value="${esc(A.hrQ)}" style="margin:12px 0">
       <div class="card">${list.map(s => `<a class="list-row" href="#hr/staff/${esc(s.code)}" style="color:inherit;text-decoration:none">
-        <div class="grow"><b>${esc(s.name)}</b> ${s.active === false ? chip('ປິດໃຊ້', 'grey') : ''}${(s.roles || []).map(r => ' ' + chip(ROLE_T[r])).join('')}
+        <div class="grow"><b>${esc(s.name)}</b> ${s.active === false ? chip('ປິດໃຊ້', 'grey') : ''}${(s.roles || []).map(r => ' ' + chip(roleName(r), r === 'ADMIN' ? 'teal' : '')).join('')}
         <div class="muted small">${esc(s.code)} · ${esc(s.pos)} · ${esc(s.dept)} · ${G(s.group) ? esc(G(s.group).name) : 'ບໍ່ຖືກປະເມີນ'} · ຫົວໜ້າ: ${esc(nm(s.sup))}</div></div>
         ${s.hasPin ? '' : chip('ບໍ່ມີ PIN', 'warn')}</a>`).join('') || '<p class="muted">ບໍ່ພົບ</p>'}</div>`;
     return h;
@@ -499,7 +515,7 @@
         ${Object.entries(A.B.config.groups).map(([k, g]) => `<option value="${k}" ${s.group === k ? 'selected' : ''}>${esc(g.name)}</option>`).join('')}</select></label>
       <label class="f"><span>ຫົວໜ້າສາຍງານ (ຜູ້ປະເມີນຟອມ ① ②)</span><select class="in" name="sup">${staffOpts(s.sup, s.code, '— ບໍ່ມີ')}</select></label>
       <label class="f"><span>ຜູ້ອະນຸມັດ KPI (ວ່າງ = ຫົວໜ້າຂອງຫົວໜ້າ: ${esc(auto)})</span><select class="in" name="appr">${staffOpts(s.appr, s.code, '— ອັດຕະໂນມັດ')}</select></label>
-      <div class="f"><span class="muted">ບົດບາດ</span>${Object.entries(ROLE_T).map(([k, t]) => `<label class="check"><input type="checkbox" name="role" value="${k}" ${s.roles.includes(k) ? 'checked' : ''}> ${t}</label>`).join('')}
+      <div class="f"><span class="muted">ບົດບາດ ${can('roles') ? '' : '(ປ່ຽນໄດ້ສະເພາະຜູ້ມີສິດ "ກຳນົດສິດ")'}</span>${A.B.roles.map(r => `<label class="check"><input type="checkbox" name="role" value="${esc(r.code)}" ${s.roles.includes(r.code) ? 'checked' : ''} ${can('roles') ? '' : 'disabled'}> ${esc(r.name)}</label>`).join('')}
         <label class="check"><input type="checkbox" name="active" ${s.active !== false ? 'checked' : ''}> ໃຊ້ງານຢູ່</label></div>
       <button class="btn pri block">ບັນທຶກ</button></form>
       ${isNew ? '' : `<form class="card" data-submit="setPin"><h3>ຕັ້ງ PIN ໃໝ່</h3><p class="muted small">${s.hasPin ? 'ມີ PIN ແລ້ວ. ຕັ້ງໃໝ່ຈະອອກຈາກລະບົບທຸກເຄື່ອງຂອງຄົນນີ້.' : 'ຍັງບໍ່ມີ PIN.'}</p>
@@ -509,7 +525,7 @@
   const IMP_COLS = ['code', 'name', 'dept', 'div', 'pos', 'group', 'sup', 'appr', 'roles'];
   function hrImport() {
     let h = `<a class="back" href="#hr/staff">← ລາຍຊື່</a><div class="card"><h3>ນຳເຂົ້າພະນັກງານ ຈາກ Excel</h3>
-      <p class="muted small">ກັອບປີ້ແຖວຈາກ Excel ແລ້ວວາງໃສ່ລຸ່ມນີ້. ລຳດັບຖັນ:<br><b>ລະຫັດ · ຊື່ ແລະ ນາມສະກຸນ · ພະແນກ · ຝ່າຍ · ຕຳແໜ່ງ · ກຸ່ມ KPI · ລະຫັດຫົວໜ້າ · ລະຫັດຜູ້ອະນຸມັດ · ບົດບາດ (HR/PRESIDENT)</b><br>
+      <p class="muted small">ກັອບປີ້ແຖວຈາກ Excel ແລ້ວວາງໃສ່ລຸ່ມນີ້. ລຳດັບຖັນ:<br><b>ລະຫັດ · ຊື່ ແລະ ນາມສະກຸນ · ພະແນກ · ຝ່າຍ · ຕຳແໜ່ງ · ກຸ່ມ KPI · ລະຫັດຫົວໜ້າ · ລະຫັດຜູ້ອະນຸມັດ · ລະຫັດບົດບາດ (${A.B.roles.map(r => esc(r.code)).join(', ')})</b><br>
       ກຸ່ມ KPI: ${Object.entries(A.B.config.groups).map(([k, g]) => esc(g.name)).join(', ')} (ຫຼື ວ່າງ). ລະຫັດທີ່ມີແລ້ວ ຈະຖືກອັບເດດ.</p>
       <textarea class="in" id="imp-text" rows="8" placeholder="E001	ນາງ ...	ບັນຊີ	..."></textarea>
       <button class="btn block" data-act="impParse" style="margin-top:8px">ກວດເບິ່ງກ່ອນ</button></div>`;
@@ -620,6 +636,47 @@
       <button class="btn pri block" data-act="cfgSave">ບັນທຶກການຕັ້ງຄ່າ</button></fieldset>`;
     return h;
   }
+  function roleMembers(code) { return A.B.staff.filter(s => s.active !== false && (s.roles || []).includes(code)); }
+  function hrRoles() {
+    const R2 = A.B.roles, act = A.B.staff.filter(s => s.active !== false), none = act.filter(s => !(s.roles || []).length).length;
+    const segs = R2.map(r => [r.name, roleMembers(r.code).length]).concat([['ພະນັກງານທົ່ວໄປ', none]]).filter(x => x[1]);
+    const COL = ['var(--accent)', 'var(--teal)', '#1f2937', '#e7b416', '#7cbf3b', '#ef8a2f', '#6b7280'], tot = segs.reduce((a, b) => a + b[1], 0) || 1;
+    let h = `<div class="alert info">ສິດ ແມ່ນສິ່ງທີ່ບົດບາດນັ້ນເຮັດໄດ້ໃນໜ້າ HR. ໜ້າທີ່ປະເມີນ (ຫົວໜ້າ, ຜູ້ອະນຸມັດ, ເພື່ອນ) ກຳນົດໃນໜ້າ "ພະນັກງານ" ແລະ "ເພື່ອນຮ່ວມງານ". ປ່ຽນແລ້ວ ມີຜົນທັນທີ.</div>
+      <div class="card"><div class="card-h">${ic('users')}<h3>ການແບ່ງບົດບາດ</h3><span class="muted small">${act.length} ຄົນ</span></div>
+      <div class="rbar" role="img" aria-label="${segs.map(x => esc(x[0]) + ' ' + x[1]).join(', ')}">${segs.map((x, i) => `<i style="flex:${x[1]};background:${COL[i % COL.length]}"></i>`).join('')}</div>
+      <div class="legend" style="margin-top:8px">${segs.map((x, i) => `<span><i style="background:${COL[i % COL.length]}"></i>${esc(x[0])} <b>${x[1]}</b></span>`).join('')}</div></div>
+      <div class="btns" style="margin-top:0;margin-bottom:12px"><a class="btn pri" href="#hr/roles/new">+ ສ້າງບົດບາດໃໝ່</a></div>`;
+    h += `<div class="duties">${R2.map(r => {
+      const m = roleMembers(r.code);
+      return `<a class="card" href="#hr/roles/${esc(r.code)}"><div class="card-h">${ic('shield')}<h3>${esc(r.name)}</h3>${chip(r.code, r.code === 'ADMIN' ? 'teal' : 'grey')}</div>
+        <div class="small" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px">${r.perms.length ? r.perms.map(p => chip((PERM_T[p] || [p])[0])).join('') : '<span class="muted">ບໍ່ມີສິດໃນໜ້າ HR</span>'}</div>
+        <div class="muted small">${m.length ? m.length + ' ຄົນ: ' + m.slice(0, 4).map(x => esc(x.name)).join(', ') + (m.length > 4 ? ' …' : '') : 'ຍັງບໍ່ມີໃຜ'}</div></a>`;
+    }).join('')}</div>`;
+    return h;
+  }
+  function hrRoleEdit(code) {
+    const isNew = code === 'new', r = isNew ? { code: '', name: '', perms: [] } : A.B.roles.find(x => x.code === code);
+    if (!r) return notFound();
+    const locked = r.code === 'ADMIN';
+    if (!A.rsel || A.rsel.code !== code) A.rsel = { code, list: isNew ? [] : roleMembers(r.code).map(s => s.code) };
+    const q = (A.rq || '').toLowerCase();
+    const people = A.B.staff.filter(s => s.active !== false && (!q || (s.name + ' ' + s.code + ' ' + s.dept).toLowerCase().includes(q)));
+    return `<a class="back" href="#hr/roles">← ສິດ ແລະ ໜ້າທີ່</a><h2>${isNew ? 'ສ້າງບົດບາດໃໝ່' : esc(r.name)}</h2>
+      <form class="card" id="rf" data-submit="roleSave">
+        <div class="row"><label class="f grow"><span>ຊື່ບົດບາດ *</span><input class="in" name="name" value="${esc(r.name)}" required maxlength="60" ${locked ? 'readonly' : ''} placeholder="ເຊັ່ນ ຜູ້ຊ່ວຍ HR"></label>
+        <label class="f" style="width:170px"><span>ລະຫັດ (ອັງກິດ) *</span><input class="in" name="code" value="${esc(r.code)}" required pattern="[A-Za-z0-9_]{2,20}" ${isNew ? '' : 'readonly'} autocapitalize="characters" placeholder="HRASSIST"></label></div>
+        <div class="sec-h"><h3>ສິດ</h3>${locked ? chip('Admin ມີທຸກສິດສະເໝີ', 'teal') : ''}</div>
+        ${Object.entries(PERM_T).map(([k, [t, d]]) => `<label class="check" style="align-items:flex-start;border-bottom:1px solid var(--line);padding:8px 0">
+          <input type="checkbox" name="perm" value="${k}" ${r.perms.includes(k) || locked ? 'checked' : ''} ${locked ? 'disabled' : ''} style="margin-top:4px">
+          <span><b>${t}</b><br><span class="muted small">${d}</span></span></label>`).join('')}
+        <div class="sec-h" style="margin-top:16px"><h3 id="rmem-n">ຄົນທີ່ມີບົດບາດນີ້ (${A.rsel.list.length})</h3></div>
+        ${can('staff') ? `<input class="in" id="rq" placeholder="ຄົ້ນຫາຊື່ / ລະຫັດ / ພະແນກ" value="${esc(A.rq || '')}" style="margin-bottom:8px">
+        <div style="max-height:320px;overflow-y:auto">${people.map(s => `<label class="check" style="border-bottom:1px solid var(--line)"><input type="checkbox" class="rmem" value="${esc(s.code)}" ${A.rsel.list.includes(s.code) ? 'checked' : ''}>
+          <span class="grow">${esc(s.name)} <span class="muted small">${esc(s.code)} · ${esc(s.pos)} · ${esc(s.dept)}</span></span></label>`).join('')}</div>`
+        : `<p class="muted small">ການເລືອກຄົນ ຕ້ອງມີສິດ "ຈັດການພະນັກງານ" ນຳ</p>`}
+        <div class="btns">${isNew || locked ? '' : `<button type="button" class="btn bad" data-act="roleDel" data-code="${esc(r.code)}">ລຶບບົດບາດ</button>`}<button class="btn pri">ບັນທຶກ</button></div>
+      </form>`;
+  }
   function notFound() { return `<a class="back" href="#home">← ກັບຄືນ</a><div class="card"><p>ບໍ່ພົບໜ້ານີ້ ຫຼື ທ່ານບໍ່ມີສິດເບິ່ງ</p></div>`; }
 
   // ---------- render ----------
@@ -644,6 +701,7 @@
       const R = { home: vHome, kpi: vKpi, pres: vPres, form: vForm, res: p.length ? vRes : vResList, print: vPrint, hr: vHr };
       if (r !== 'kpi') A.kedit = null;
       if (r !== 'hr' || p[0] !== 'peer') A.peerSel = null;
+      if (r !== 'hr' || p[0] !== 'roles' || !p[1]) { A.rsel = null; A.rq = ''; }
       html = crumbs(r, p) + (R[r] || vHome)(...p);
     }
     $('#view').innerHTML = `<div class="wrap">${html}</div>`;
@@ -778,12 +836,17 @@
       if (r.ok) toast('ບັນທຶກແລ້ວ', 'ok');
     }
   };
+  ACT.roleDel = async el => {
+    if (!confirm('ລຶບບົດບາດນີ້?')) return;
+    const r = await call('roleDelete', { code: el.dataset.code }, { noRender: true });
+    if (r.ok) { toast('ລຶບແລ້ວ', 'ok'); A.rsel = null; go('#hr/roles'); } else render();
+  };
   const SUBMIT = {
     login() { call('login', { code: $('#lg-code').value, pin: $('#lg-pin').value }).then(r => { if (r.ok) go('#home'); }); },
     async staffSave(form) {
       const fd = new FormData(form), row = {};
       for (const k of ['code', 'name', 'pos', 'dept', 'div', 'group', 'sup', 'appr']) row[k] = String(fd.get(k) || '');
-      row.roles = fd.getAll('role'); row.active = fd.get('active') === 'on';
+      row.roles = can('roles') ? fd.getAll('role') : ((S(row.code) || {}).roles || []); row.active = fd.get('active') === 'on';
       const r = await call('staffSave', { row }, { noRender: true });
       if (r.ok) { toast('ບັນທຶກແລ້ວ', 'ok'); go('#hr/staff'); } else render();
     },
@@ -792,6 +855,23 @@
       const r = await call('setPin', { code: decodeURIComponent(code), pin }, { noRender: true });
       if (r.ok) toast('ຕັ້ງ PIN ແລ້ວ', 'ok');
       render();
+    },
+    async roleSave(form) {
+      const fd = new FormData(form), code = String(fd.get('code') || '').trim().toUpperCase();
+      const was = roleMembers(code).map(s => s.code), want = A.rsel ? A.rsel.list : was;
+      if (code !== 'ADMIN') {
+        const r = await call('roleSave', { role: { code, name: fd.get('name'), perms: fd.getAll('perm') } }, { noRender: true });
+        if (!r.ok) return render();
+      }
+      const changed = A.B.staff.filter(s => was.includes(s.code) !== want.includes(s.code)).map(s => {
+        const roles = (s.roles || []).filter(x => x !== code).concat(want.includes(s.code) ? [code] : []);
+        return { code: s.code, name: s.name, dept: s.dept, div: s.div, pos: s.pos, group: s.group, sup: s.sup, appr: s.appr, roles, active: s.active };
+      });
+      if (changed.length && can('staff')) {
+        const r2 = await call('staffImport', { rows: changed }, { noRender: true });
+        if (!r2.ok) return render();
+      }
+      toast('ບັນທຶກແລ້ວ — ມີຜົນທັນທີ', 'ok'); A.rsel = null; go('#hr/roles');
     },
     async roundCreate() {
       const r = await call('roundCreate', { name: $('#rn').value, copyKpi: $('#rcopy').checked }, { noRender: true });
@@ -824,6 +904,7 @@
     const t = e.target;
     if (t.dataset.kf && A.kedit) { A.kedit.items[Number(t.dataset.i)][t.dataset.kf] = t.value; updWsum(); }
     else if (t.closest('#fm')) updLive();
+    else if (t.id === 'rq') { A.rq = t.value; render(); const q = $('#rq'); q.focus(); q.setSelectionRange(q.value.length, q.value.length); }
     else if (t.id === 'hr-q') { A.hrQ = t.value; render(); const q = $('#hr-q'); q.focus(); q.setSelectionRange(q.value.length, q.value.length); }
   });
   document.addEventListener('change', e => {
@@ -831,6 +912,11 @@
     if (t.closest('#fm')) updLive();
     else if (t.id === 'hr-dept') { A.hrDept = t.value; render(); }
     else if (t.id === 'hr-todo') { A.hrTodo = t.checked; render(); }
+    else if (t.classList.contains('rmem')) {
+      const l = A.rsel.list;
+      if (t.checked) { if (!l.includes(t.value)) l.push(t.value); } else l.splice(l.indexOf(t.value), 1);
+      const h3 = $('#rmem-n'); if (h3) h3.textContent = `ຄົນທີ່ມີບົດບາດນີ້ (${l.length})`;
+    }
     else if (t.id === 'pres-all') $$('.pres-k').forEach(x => { x.checked = t.checked; });
     else if (t.classList.contains('peer-c')) {
       const l = A.peerSel.list;

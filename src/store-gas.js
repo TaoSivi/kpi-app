@@ -7,10 +7,11 @@ const GS_TABS = {
   peers: ['ເພື່ອນ', ['round', 'emp', 'by'], ['ຮອບ', 'ຜູ້ຖືກປະເມີນ', 'ຜູ້ປະເມີນ']],
   answers: ['ຄຳຕອບ', ['id', 'round', 'form', 'emp', 'by', 'ans', 'status', 'at'], ['id', 'ຮອບ', 'ຟອມ', 'ຜູ້ຖືກປະເມີນ', 'ຜູ້ປະເມີນ', 'ຄຳຕອບ', 'ສະຖານະ', 'ເວລາ']],
   sessions: ['sessions', ['t', 'code', 'exp'], ['token', 'ລະຫັດ', 'ໝົດອາຍຸ']],
+  roles: ['ສິດ', ['code', 'name', 'perms'], ['ລະຫັດບົດບາດ', 'ຊື່ບົດບາດ', 'ສິດ']],
   results: ['ຜົນ', ['round', 'emp', 'name', 'dept', 'group', 'I', 'II', 'III', 'IV', 'total', 'grade'],
     ['ຮອບ', 'ລະຫັດ', 'ຊື່', 'ພະແນກ', 'ກຸ່ມ', 'ດ້ານ I', 'ດ້ານ II', 'ດ້ານ III', 'ດ້ານ IV', 'ລວມ %', 'ລະດັບ']]
 };
-const GS_JSON = ['roles', 'items', 'hist', 'ans'];
+const GS_JSON = ['roles', 'items', 'hist', 'ans', 'perms'];
 const GS_NUM = ['fails', 'lockUntil', 'at', 'form', 'exp', 'I', 'II', 'III', 'IV', 'total'];
 const GS_CONFIG_TAB = 'ຕັ້ງຄ່າ';
 

@@ -229,3 +229,5 @@ a.card:hover { border-color: var(--line-2); box-shadow: 0 4px 14px rgba(16,24,40
 }
 .sign { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; text-align: center; margin-top: 28px; }
 .sign div { padding-top: 70px; }
+.rbar { display: flex; height: 14px; border-radius: 99px; overflow: hidden; gap: 3px; background: #eef0f2; }
+.rbar i { display: block; height: 100%; border-radius: 99px; min-width: 6px; }

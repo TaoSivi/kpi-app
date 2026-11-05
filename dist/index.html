@@ -237,6 +237,8 @@ a.card:hover { border-color: var(--line-2); box-shadow: 0 4px 14px rgba(16,24,40
 }
 .sign { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; text-align: center; margin-top: 28px; }
 .sign div { padding-top: 70px; }
+.rbar { display: flex; height: 14px; border-radius: 99px; overflow: hidden; gap: 3px; background: #eef0f2; }
+.rbar i { display: block; height: 100%; border-radius: 99px; min-width: 6px; }
 </style>
 </head>
 <body>
@@ -373,11 +375,20 @@ if (typeof module !== 'undefined') module.exports = { seedDb };
 // store = {load, save(db, tables), hash, now, uuid, lock(fn)}
 const SC = typeof require !== 'undefined' && typeof module !== 'undefined'
   ? require('./scoring.js') : { DEFAULT_CONFIG, score, hasSub, validateConfig };
-const TABLES = ['staff', 'rounds', 'kpi', 'peers', 'answers', 'sessions', 'results'];
+const TABLES = ['staff', 'rounds', 'kpi', 'peers', 'answers', 'sessions', 'results', 'roles'];
 const ROUND_FLOW = { setup: ['eval'], eval: ['setup', 'closed'], closed: ['eval', 'published'], published: ['closed'] };
-const ROLES = ['HR', 'PRESIDENT'];
+// ສິດທີ່ Admin ກຳນົດໃຫ້ແຕ່ລະບົດບາດໄດ້. ADMIN ມີທຸກສິດ ແລະ ແກ້ໄຂບໍ່ໄດ້.
+const PERMS = ['staff', 'roles', 'round', 'peers', 'config', 'kpiReview', 'kpiFinal', 'progress', 'results'];
+const DEFAULT_ROLES = [
+  { code: 'ADMIN', name: 'ຜູ້ດູແລລະບົບ (Admin)', perms: PERMS.slice() },
+  { code: 'HR', name: 'HR', perms: PERMS.filter(p => p !== 'roles' && p !== 'kpiFinal') },
+  { code: 'PRESIDENT', name: 'ປະທານ', perms: ['kpiFinal'] }
+];
 const clone = o => JSON.parse(JSON.stringify(o));
 
+function permsOf(s, roles) {
+  return new Set((s.roles || []).flatMap(c => (roles.find(r => r.code === c) || { perms: [] }).perms));
+}
 function E(msg) { const e = new Error(msg); e.user = true; return e; }
 const NOAUTH = 'ກະລຸນາເຂົ້າລະບົບໃໝ່';
 const NOPERM = 'ທ່ານບໍ່ມີສິດເຮັດລາຍການນີ້';
@@ -390,6 +401,9 @@ function handle(req, store) {
 function run(req, store) {
   const db = store.load();
   for (const k of TABLES) db[k] = db[k] || [];
+  if (!db.roles.length) db.roles = clone(DEFAULT_ROLES);
+  const adm = db.roles.find(r => r.code === 'ADMIN');
+  if (adm) adm.perms = PERMS.slice(); else db.roles.unshift(clone(DEFAULT_ROLES[0]));
   const X = ctx(db, db.config || clone(SC.DEFAULT_CONFIG), store);
   if (req.a === 'login') return login(X, req);
   const fn = ACTIONS[req.a];
@@ -406,9 +420,14 @@ function ctx(db, cfg, store) {
   X.active = () => db.staff.filter(s => s.active !== false);
   X.evaluated = s => !!s && s.active !== false && !!cfg.groups[s.group];
   X.subs = code => X.active().filter(s => s.sup === code);
-  X.isHR = u => (u.roles || []).includes('HR');
-  X.isPres = u => (u.roles || []).includes('PRESIDENT');
-  X.pres = () => X.active().find(X.isPres);
+  // bootstrap: ຖ້າບໍ່ມີໃຜມີສິດ "ກຳນົດສິດ", ຄົນທີ່ມີສິດ "ຈັດການພະນັກງານ" ໄດ້ສິດນັ້ນ (ກັນລັອກຕົນເອງອອກ)
+  X.perms = u => {
+    const p = permsOf(u, db.roles);
+    if (!p.has('roles') && p.has('staff') && !X.active().some(s => permsOf(s, db.roles).has('roles'))) p.add('roles');
+    return p;
+  };
+  X.can = (u, p) => X.perms(u).has(p);
+  X.pres = () => X.active().find(s => X.can(s, 'kpiFinal'));
   X.approverOf = e => { if (e.appr) return e.appr; const s = X.by(e.sup); return (s && s.sup) || null; };
   X.openRound = () => db.rounds.find(r => r.status === 'setup' || r.status === 'eval');
   X.round = id => (id && db.rounds.find(r => r.id === id)) || X.openRound() || db.rounds[db.rounds.length - 1] || null;
@@ -491,7 +510,7 @@ function kpiAck(X, u, req) {
   hist(X, k, u, req.ok ? 'ຮັບຮູ້' : 'ຂໍສົນທະນາ', req.msg);
 }
 function kpiHr(X, u, req) {
-  X.need(X.isHR(u));
+  X.need(X.can(u, 'kpiReview'));
   const { e, k } = kpiFor(X, u, req.emp, false);
   if (!k || k.status !== 'hr') throw E('KPI ນີ້ບໍ່ໄດ້ລໍຖ້າ HR ກວດ');
   decide(X, u, k, req.ok, req.msg, X.approverOf(e) ? 'appr' : afterAppr(X));
@@ -503,7 +522,7 @@ function kpiAppr(X, u, req) {
   decide(X, u, k, req.ok, req.msg, afterAppr(X));
 }
 function kpiPres(X, u, req) {
-  X.need(X.isPres(u));
+  X.need(X.can(u, 'kpiFinal'));
   for (const emp of req.emps || []) {
     const { k } = kpiFor(X, u, emp, false);
     if (!k || k.status !== 'pres') throw E('KPI ບາງລາຍການບໍ່ໄດ້ລໍຖ້າປະທານ');
@@ -511,7 +530,7 @@ function kpiPres(X, u, req) {
   }
 }
 function kpiUnlock(X, u, req) {
-  X.need(X.isHR(u));
+  X.need(X.can(u, 'kpiReview'));
   const { r, e, k } = kpiFor(X, u, req.emp, false);
   if (!k || k.status === 'draft') throw E('KPI ນີ້ເປັນຮ່າງຢູ່ແລ້ວ');
   if (X.subAns(r.id, 1, e.code).length) throw E('ຟອມ ① ຂອງຄົນນີ້ສົ່ງແລ້ວ — ຕ້ອງເປີດຄືນຟອມ ① ກ່ອນ');
@@ -558,7 +577,7 @@ function answerSubmit(X, u, req) {
   X.ch.add('answers');
 }
 function answerReopen(X, u, req) {
-  X.need(X.isHR(u));
+  X.need(X.can(u, 'progress'));
   const a = X.db.answers.find(x => x.id === req.id);
   if (!a) throw E('ບໍ່ພົບຟອມ');
   const r = X.db.rounds.find(x => x.id === a.round);
@@ -585,7 +604,7 @@ function mask(res) {
 
 // ---------- round / staff / peers / config (HR) ----------
 function roundCreate(X, u, req) {
-  X.need(X.isHR(u));
+  X.need(X.can(u, 'round'));
   if (X.openRound()) throw E('ຍັງມີຮອບທີ່ເປີດຢູ່ — ປິດກ່ອນຈຶ່ງສ້າງຮອບໃໝ່');
   const name = String(req.name || '').trim().slice(0, 60);
   if (!name) throw E('ກະລຸນາໃສ່ຊື່ຮອບ');
@@ -599,7 +618,7 @@ function roundCreate(X, u, req) {
   }
 }
 function roundStatus(X, u, req) {
-  X.need(X.isHR(u));
+  X.need(X.can(u, 'round'));
   const r = X.db.rounds.find(x => x.id === req.id);
   if (!r) throw E('ບໍ່ພົບຮອບ');
   if (!(ROUND_FLOW[r.status] || []).includes(req.status)) throw E('ປ່ຽນສະຖານະແບບນີ້ບໍ່ໄດ້');
@@ -623,11 +642,11 @@ function cleanStaff(X, row, old) {
   const t = v => String(v || '').trim().slice(0, 100), up = v => t(v).toUpperCase();
   return Object.assign({ pin: '', fails: 0, lockUntil: 0 }, old || {}, {
     code, name, group, dept: t(row.dept), div: t(row.div), pos: t(row.pos), sup: up(row.sup), appr: up(row.appr),
-    roles: (Array.isArray(row.roles) ? row.roles : String(row.roles || '').split(/[,\s]+/)).map(x => String(x).toUpperCase()).filter(x => ROLES.includes(x)),
+    roles: (Array.isArray(row.roles) ? row.roles : String(row.roles || '').split(/[,\s]+/)).map(x => String(x).toUpperCase()).filter(x => X.db.roles.some(r => r.code === x)),
     active: row.active !== false && row.active !== 'false'
   });
 }
-function checkStaff(list) {
+function checkStaff(list, roles) {
   const by = new Map(list.map(s => [s.code, s]));
   if (by.size !== list.length) throw E('ມີລະຫັດພະນັກງານຊ້ຳກັນ');
   for (const s of list) {
@@ -639,28 +658,30 @@ function checkStaff(list) {
     let c = s, n = 0;
     while (c && c.sup) { c = by.get(c.sup); if (c === s || ++n > list.length) throw E(`${s.code}: ສາຍບັງຄັບບັນຊາ ເປັນວົງວຽນ`); }
   }
-  if (!list.some(s => s.active && s.roles.includes('HR'))) throw E('ຕ້ອງມີ HR ຢ່າງໜ້ອຍ 1 ຄົນທີ່ໃຊ້ງານຢູ່');
+  if (!list.some(s => s.active !== false && ['roles', 'staff'].some(p => permsOf(s, roles).has(p))))
+    throw E('ຕ້ອງມີຢ່າງໜ້ອຍ 1 ຄົນທີ່ໃຊ້ງານຢູ່ ທີ່ມີສິດ Admin ຫຼື HR (ຈັດການພະນັກງານ)');
 }
-function upsertStaff(X, rows) {
-  const list = X.db.staff.slice();
+function upsertStaff(X, u, rows) {
+  const list = X.db.staff.slice(), canRoles = X.can(u, 'roles'), key = r => (r || []).slice().sort().join(',');
   for (const row of rows) {
     const code = String(row.code || '').trim().toUpperCase();
     const i = list.findIndex(s => s.code === code);
     const s = cleanStaff(X, row, i >= 0 ? list[i] : null);
+    if (!canRoles && key(s.roles) !== key(i >= 0 ? list[i].roles : [])) throw E(code + ': ການປ່ຽນບົດບາດ ຕ້ອງມີສິດ "ກຳນົດສິດ"');
     if (i >= 0) list[i] = s; else list.push(s);
   }
-  checkStaff(list);
+  checkStaff(list, X.db.roles);
   X.db.staff = list; X.ch.add('staff');
 }
-function staffSave(X, u, req) { X.need(X.isHR(u)); upsertStaff(X, [req.row || {}]); }
+function staffSave(X, u, req) { X.need(X.can(u, 'staff')); upsertStaff(X, u, [req.row || {}]); }
 function staffImport(X, u, req) {
-  X.need(X.isHR(u));
+  X.need(X.can(u, 'staff'));
   if (!Array.isArray(req.rows) || !req.rows.length) throw E('ບໍ່ມີຂໍ້ມູນ');
-  upsertStaff(X, req.rows);
+  upsertStaff(X, u, req.rows);
 }
 // req = {code, pin} ຫຼື {list:[{code, pin}]} (ທັງຊຸດ ສຳເລັດ ຫຼື ລົ້ມເຫຼວພ້ອມກັນ)
 function setPin(X, u, req) {
-  X.need(X.isHR(u));
+  X.need(X.can(u, 'staff'));
   for (const it of req.list || [req]) setOnePin(X, it);
 }
 function setOnePin(X, req) {
@@ -673,7 +694,7 @@ function setOnePin(X, req) {
 }
 // req = {emp, peers} ຫຼື {list:[{emp, peers}]}
 function peerSet(X, u, req) {
-  X.need(X.isHR(u));
+  X.need(X.can(u, 'peers'));
   const r = X.openRound();
   if (!r) throw E('ບໍ່ມີຮອບປະເມີນທີ່ເປີດຢູ່');
   for (const it of req.list || [req]) peerSetOne(X, r, it);
@@ -695,7 +716,7 @@ function peerSetOne(X, r, req) {
   X.ch.add('peers');
 }
 function configSave(X, u, req) {
-  X.need(X.isHR(u));
+  X.need(X.can(u, 'config'));
   if (X.db.rounds.some(r => r.status === 'eval')) throw E('ກຳລັງປະເມີນຢູ່ — ແກ້ການຕັ້ງຄ່າບໍ່ໄດ້');
   const n = req.config || {}, cfg = clone(X.cfg), strs = a => (Array.isArray(a) ? a : []).map(s => String(s).trim()).filter(Boolean);
   for (const [k, g] of Object.entries(cfg.groups)) {
@@ -712,6 +733,27 @@ function configSave(X, u, req) {
   if (errs.length) throw E(errs.join('\n'));
   X.db.config = cfg; X.cfg = cfg; X.ch.add('config');
 }
+function roleSave(X, u, req) {
+  X.need(X.can(u, 'roles'));
+  const r = req.role || {}, code = String(r.code || '').trim().toUpperCase();
+  if (!/^[A-Z0-9_]{2,20}$/.test(code)) throw E('ລະຫັດບົດບາດ ຕ້ອງເປັນຕົວອັກສອນອັງກິດ ຫຼື ຕົວເລກ 2–20 ຕົວ');
+  if (code === 'ADMIN') throw E('ບົດບາດ Admin ມີທຸກສິດສະເໝີ — ແກ້ໄຂບໍ່ໄດ້');
+  const name = String(r.name || '').trim().slice(0, 60);
+  if (!name) throw E('ກະລຸນາໃສ່ຊື່ບົດບາດ');
+  const row = { code, name, perms: [...new Set((r.perms || []).filter(p => PERMS.includes(p)))] };
+  const i = X.db.roles.findIndex(x => x.code === code), next = X.db.roles.slice();
+  if (i >= 0) next[i] = row; else next.push(row);
+  checkStaff(X.db.staff, next);
+  X.db.roles = next; X.ch.add('roles');
+}
+function roleDelete(X, u, req) {
+  X.need(X.can(u, 'roles'));
+  const code = String(req.code || '').toUpperCase();
+  if (code === 'ADMIN') throw E('ລຶບບົດບາດ Admin ບໍ່ໄດ້');
+  if (!X.db.roles.some(r => r.code === code)) throw E('ບໍ່ພົບບົດບາດ');
+  if (X.db.staff.some(s => (s.roles || []).includes(code))) throw E('ຍັງມີພະນັກງານໃຊ້ບົດບາດນີ້ — ເອົາອອກຈາກພະນັກງານກ່ອນ');
+  X.db.roles = X.db.roles.filter(r => r.code !== code); X.ch.add('roles');
+}
 function logout(X, u, req) { X.db.sessions = X.db.sessions.filter(s => s.t !== req.t); X.ch.add('sessions'); }
 
 // ---------- boot: ທຸກຢ່າງທີ່ຜູ້ໃຊ້ຄົນນີ້ມີສິດເຫັນ ----------
@@ -723,9 +765,9 @@ function pub(s, full) {
 function canSeeKpi(X, u, k) {
   const e = X.by(k.emp);
   if (!e) return false;
-  return X.isHR(u) || (k.emp === u.code && k.status !== 'draft') || e.sup === u.code ||
+  return X.can(u, 'kpiReview') || X.can(u, 'results') || (k.emp === u.code && k.status !== 'draft') || e.sup === u.code ||
     (X.approverOf(e) === u.code && ['appr', 'pres', 'ok'].includes(k.status)) ||
-    (X.isPres(u) && ['pres', 'ok'].includes(k.status));
+    (X.can(u, 'kpiFinal') && ['pres', 'ok'].includes(k.status));
 }
 function duties(X, u, r) {
   const D = [];
@@ -736,9 +778,9 @@ function duties(X, u, r) {
   if (own && own.status === 'ack') D.push({ kind: 'kpiAck', emp: u.code, done: false });
   for (const k of X.db.kpi.filter(k => k.round === r.id)) {
     const e = X.by(k.emp); if (!X.evaluated(e)) continue;
-    if (k.status === 'hr' && X.isHR(u)) D.push({ kind: 'kpiHr', emp: e.code, done: false });
+    if (k.status === 'hr' && X.can(u, 'kpiReview')) D.push({ kind: 'kpiHr', emp: e.code, done: false });
     if (k.status === 'appr' && X.approverOf(e) === u.code) D.push({ kind: 'kpiAppr', emp: e.code, done: false });
-    if (k.status === 'pres' && X.isPres(u)) D.push({ kind: 'kpiPres', emp: e.code, done: false });
+    if (k.status === 'pres' && X.can(u, 'kpiFinal')) D.push({ kind: 'kpiPres', emp: e.code, done: false });
   }
   if (r.status === 'eval') {
     const mine = (f, emp) => X.db.answers.some(a => a.round === r.id && a.form === f && a.emp === emp && a.by === u.code && a.status === 'sub');
@@ -755,14 +797,16 @@ function duties(X, u, r) {
   return D;
 }
 function boot(X, u, req) {
-  const r = X.round(req.round), hr = X.isHR(u);
+  const r = X.round(req.round), P = X.perms(u), full = P.has('staff') || P.has('roles');
+  const hr = ['progress', 'peers', 'staff', 'round'].some(p => P.has(p));
   const evals = X.active().filter(X.evaluated);
   let results = [];
-  if (r && hr) results = evals.map(e => result(X, r, e));
+  if (r && P.has('results')) results = evals.map(e => result(X, r, e));
   else if (r && r.status === 'published')
     results = evals.filter(e => e.code === u.code || e.sup === u.code).map(e => mask(result(X, r, e)));
   const out = {
-    me: pub(u, true), staff: (hr ? X.db.staff : X.active()).map(s => pub(s, hr)), config: X.cfg,
+    me: Object.assign(pub(u, true), { perms: [...P] }), staff: (full ? X.db.staff : X.active()).map(s => pub(s, full)), config: X.cfg,
+    roles: X.db.roles,
     rounds: X.db.rounds, round: r,
     kpi: r ? X.db.kpi.filter(k => k.round === r.id && canSeeKpi(X, u, k)) : [],
     duties: duties(X, u, r),
@@ -773,7 +817,7 @@ function boot(X, u, req) {
   if (hr && r) {
     out.hr = {
       peers: X.db.peers.filter(p => p.round === r.id),
-      answers: X.db.answers.filter(a => a.round === r.id).map(a => ({ id: a.id, form: a.form, emp: a.emp, by: a.by, status: a.status, at: a.at })),
+      answers: !P.has('progress') ? [] : X.db.answers.filter(a => a.round === r.id).map(a => ({ id: a.id, form: a.form, emp: a.emp, by: a.by, status: a.status, at: a.at })),
       progress: evals.map(e => {
         const assigned = X.db.peers.filter(p => p.round === r.id && p.emp === e.code).map(p => p.by);
         const k = X.kpi(r.id, e.code);
@@ -792,7 +836,7 @@ function boot(X, u, req) {
 
 const ACTIONS = {
   boot: () => { }, logout, kpiSave, kpiSubmit, kpiAck, kpiHr, kpiAppr, kpiPres, kpiUnlock,
-  answerSubmit, answerReopen, staffSave, staffImport, setPin, roundCreate, roundStatus, peerSet, configSave
+  answerSubmit, answerReopen, staffSave, staffImport, setPin, roundCreate, roundStatus, peerSet, configSave, roleSave, roleDelete
 };
 
 if (typeof module !== 'undefined') module.exports = { handle };
@@ -840,7 +884,18 @@ function makeDemoStore() {
   const ROUND_ST = { setup: 'ໄລຍະຕັ້ງ KPI', eval: 'ໄລຍະປະເມີນ', closed: 'ປິດຮອບແລ້ວ', published: 'ປະກາດຜົນແລ້ວ' };
   const RATE = ['ອ່ອນ', 'ຄວນປັບປຸງ', 'ພໍໃຊ້', 'ດີ', 'ດີເລີດ'];
   const BADGE = { 1: '①', 2: '②', 3: '③', 4: '④' };
-  const ROLE_T = { HR: 'HR', PRESIDENT: 'ປະທານ' };
+  const ROLE_T = { ADMIN: 'Admin', HR: 'HR', PRESIDENT: 'ປະທານ' };
+  const PERM_T = {
+    staff: ['ຈັດການພະນັກງານ ແລະ PIN', 'ເພີ່ມ/ແກ້ລາຍຊື່, ນຳເຂົ້າຈາກ Excel, ຕັ້ງ PIN'],
+    roles: ['ກຳນົດສິດ ແລະ ບົດບາດ', 'ສ້າງບົດບາດ, ເລືອກສິດ, ມອບບົດບາດໃຫ້ພະນັກງານ'],
+    round: ['ຈັດການຮອບປະເມີນ', 'ສ້າງຮອບ, ເປີດປະເມີນ, ປິດຮອບ, ປະກາດຜົນ'],
+    peers: ['ກຳນົດເພື່ອນຮ່ວມງານ', 'ເລືອກຄົນທີ່ຈະປະເມີນຟອມ ③'],
+    config: ['ຕັ້ງຄ່ານ້ຳໜັກ ແລະ ຄຳຖາມ', 'ແກ້ນ້ຳໜັກ 4 ດ້ານ ແລະ ຄຳຖາມຂອງຟອມ'],
+    kpiReview: ['ກວດ KPI (ຂັ້ນ HR)', 'ຜ່ານ ຫຼື ສົ່ງກັບ KPI, ປົດລັອກ KPI'],
+    kpiFinal: ['ອະນຸມັດ KPI ສຸດທ້າຍ', 'ຂັ້ນປະທານ — ອະນຸມັດທັງໝົດໄດ້ດ້ວຍປຸ່ມດຽວ'],
+    progress: ['ເບິ່ງຄວາມຄືບໜ້າ', 'ເຫັນວ່າໃຜກອກຟອມໃດແລ້ວ, ເປີດຟອມຄືນໃຫ້ແກ້'],
+    results: ['ເບິ່ງຜົນທຸກຄົນ', 'ເບິ່ງຄະແນນ ແລະ ດາວໂຫຼດຜົນຂອງທຸກຄົນ']
+  };
   const ICONS = {
     list: '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4h6v3H9zM9 12h6M9 16h4"/>',
     chart: '<path d="M4 20V10M10 20V4M16 20v-7M21 20H3"/>',
@@ -868,8 +923,8 @@ function makeDemoStore() {
   const nm = code => { const s = code && S(code); return s ? s.name : (code || '—'); };
   const G = code => A.B.config.groups[code];
   const me = () => A.B.me;
-  const isHR = () => me().roles.includes('HR');
-  const isPres = () => me().roles.includes('PRESIDENT');
+  const can = p => (me().perms || []).includes(p);
+  const roleName = c => ((A.B && A.B.roles || []).find(r => r.code === c) || {}).name || ROLE_T[c] || c;
   const kpiOf = emp => A.B.kpi.find(k => k.emp === emp);
   const chip = (t, c) => `<span class="chip ${c || ''}">${esc(t)}</span>`;
   const kchip = st => chip(...(KPI_ST[st] || KPI_ST.none));
@@ -913,11 +968,11 @@ function makeDemoStore() {
       <div class="who"><div class="nm"><b>${esc(B.me.name)}</b><span>${esc(B.me.pos || '')}</span></div><div class="avatar" aria-hidden="true">${esc(initial(B.me.name))}</div></div>
       <button class="icon-btn" data-act="logout" aria-label="ອອກຈາກລະບົບ" title="ອອກຈາກລະບົບ">${ic('logout')}</button></div>`;
     const [cur, sub] = (location.hash.slice(1) || 'home').split('/');
-    const tabs = [['home', 'list', 'ວຽກຂອງຂ້ອຍ'], ['res', 'chart', 'ຜົນປະເມີນ']].concat(isHR() ? [['hr', 'gear', 'HR']] : []);
+    const tabs = [['home', 'list', 'ວຽກຂອງຂ້ອຍ'], ['res', 'chart', 'ຜົນປະເມີນ']].concat(hrTabs().length ? [['hr', 'gear', 'HR']] : []);
     const hrSub = { who: 'progress', import: 'staff', peer: 'peers' }[sub] || sub || 'progress';
     nav.innerHTML = `<a class="brand side-only" href="#home"><span class="mark">${ic('target')}</span>ປະເມີນ KPI</a><div class="sec side-only">ເມນູຫຼັກ</div>` +
       tabs.map(([h, i, t]) => `<a href="#${h}" class="${cur === h || (h === 'home' && ['kpi', 'form', 'pres'].includes(cur)) ? 'on' : ''}" ${cur === h ? 'aria-current="page"' : ''}>${ic(i)}<span>${t}</span></a>` +
-        (h === 'hr' ? HR_TABS.map(([k, tt]) => `<a href="#hr/${k}" class="sub side-only ${cur === 'hr' && hrSub === k ? 'on' : ''}">${tt}</a>`).join('') : '')).join('');
+        (h === 'hr' ? hrTabs().map(([k, tt]) => `<a href="#hr/${k}" class="sub side-only ${cur === 'hr' && hrSub === k ? 'on' : ''}">${tt}</a>`).join('') : '')).join('');
     bar.hidden = A.mode !== 'demo';
     if (A.mode === 'demo') {
       const opts = A.store.load().staff.map(s => `<option value="${esc(s.code)}" ${s.code === B.me.code ? 'selected' : ''}>${esc(s.name)} — ${esc(s.pos)}</option>`).join('');
@@ -943,7 +998,7 @@ function makeDemoStore() {
     if (A.mode === 'demo') {
       demo = `<div class="card"><h3>ໂໝດທົດລອງ — ກົດເລືອກຄົນເພື່ອເຂົ້າ (PIN 1234)</h3>` +
         A.store.load().staff.map(s => `<div class="list-row" data-act="demoLogin" data-code="${esc(s.code)}"><div class="grow"><b>${esc(s.name)}</b>
-          <div class="muted">${esc(s.pos)} · ${esc(s.dept)}${(s.roles || []).map(r => ' · ' + ROLE_T[r]).join('')}</div></div><span class="chip">${esc(s.code)}</span></div>`).join('') + `</div>`;
+          <div class="muted">${esc(s.pos)} · ${esc(s.dept)}${(s.roles || []).map(r => ' · ' + (ROLE_T[r] || r)).join('')}</div></div><span class="chip">${esc(s.code)}</span></div>`).join('') + `</div>`;
     }
     return `<h1 style="margin-top:24px">ເຂົ້າລະບົບ</h1>
     <form class="card" data-submit="login">
@@ -978,7 +1033,7 @@ function makeDemoStore() {
   }
   function vHome() {
     const B = A.B, r = B.round;
-    if (!r) return `<div class="card"><h2>ຍັງບໍ່ມີຮອບປະເມີນ</h2><p>${isHR() ? '<a href="#hr/round">ສ້າງຮອບປະເມີນ</a>' : 'ລໍຖ້າ HR ເປີດຮອບປະເມີນ'}</p></div>`;
+    if (!r) return `<div class="card"><h2>ຍັງບໍ່ມີຮອບປະເມີນ</h2><p>${can('round') ? '<a href="#hr/round">ສ້າງຮອບປະເມີນ</a>' : 'ລໍຖ້າ HR ເປີດຮອບປະເມີນ'}</p></div>`;
     const pend = B.duties.filter(d => !d.done && d.kind !== 'kpiPres'), done = B.duties.filter(d => d.done);
     const pres = B.duties.filter(d => d.kind === 'kpiPres');
     const total = B.duties.filter(d => d.kind !== 'kpiPres').length;
@@ -1003,7 +1058,7 @@ function makeDemoStore() {
     const own = kpiOf(B.me.code);
     if (own) h += `<a class="card duty" href="#kpi/${esc(B.me.code)}"><div class="badge">KPI</div><div class="grow"><div class="t">KPI ຂອງຂ້ອຍ</div>
       <div class="muted">${own.items.length} ຕົວຊີ້ວັດ</div></div>${kchip(own.status)}</a>`;
-    if (B.results.some(x => x.emp === B.me.code) && !isHR()) h += `<a class="card duty" href="#res/${esc(B.me.code)}"><div class="badge">${ic('chart')}</div><div class="grow"><div class="t">ຜົນປະເມີນຂອງຂ້ອຍ</div></div><span class="btn sm pri">ເບິ່ງ</span></a>`;
+    if (B.results.some(x => x.emp === B.me.code) && !can('results')) h += `<a class="card duty" href="#res/${esc(B.me.code)}"><div class="badge">${ic('chart')}</div><div class="grow"><div class="t">ຜົນປະເມີນຂອງຂ້ອຍ</div></div><span class="btn sm pri">ເບິ່ງ</span></a>`;
     if (done.length) h += `<details><summary>ເຮັດແລ້ວ (${done.length})</summary>${done.map(dutyCard).join('')}</details>`;
     return h;
   }
@@ -1060,10 +1115,10 @@ function makeDemoStore() {
       <div class="btns"><button class="btn bad" data-act="kpiDecide" data-a="${a}" data-emp="${esc(e.code)}" data-ok="0">${noT}</button>
       <button class="btn ok" data-act="kpiDecide" data-a="${a}" data-emp="${esc(e.code)}" data-ok="1">${okT}</button></div></div>`;
     if (e.code === m.code && st === 'ack') return panel('ທ່ານເຫັນດີກັບ KPI ນີ້ບໍ?', 'kpiAck', 'ຮັບຮູ້ KPI', 'ຂໍສົນທະນາກັບຫົວໜ້າ');
-    if (isHR() && st === 'hr') return panel('HR ກວດ KPI', 'kpiHr', 'ຜ່ານການກວດ', 'ສົ່ງກັບໃຫ້ແກ້');
+    if (can('kpiReview') && st === 'hr') return panel('HR ກວດ KPI', 'kpiHr', 'ຜ່ານການກວດ', 'ສົ່ງກັບໃຫ້ແກ້');
     if (A.B.approvers[e.code] === m.code && st === 'appr') return panel('ອະນຸມັດ KPI', 'kpiAppr', 'ອະນຸມັດ', 'ສົ່ງກັບໃຫ້ແກ້');
-    if (isPres() && st === 'pres') return panel('ອະນຸມັດສຸດທ້າຍ', 'kpiPres', 'ອະນຸມັດ', 'ສົ່ງກັບໃຫ້ແກ້');
-    if (isHR() && st === 'ok' && openRound()) return `<button class="btn block" data-act="kpiUnlock" data-emp="${esc(e.code)}">ປົດລັອກ KPI ໃຫ້ແກ້ໄຂ (HR)</button>`;
+    if (can('kpiFinal') && st === 'pres') return panel('ອະນຸມັດສຸດທ້າຍ', 'kpiPres', 'ອະນຸມັດ', 'ສົ່ງກັບໃຫ້ແກ້');
+    if (can('kpiReview') && st === 'ok' && openRound()) return `<button class="btn block" data-act="kpiUnlock" data-emp="${esc(e.code)}">ປົດລັອກ KPI ໃຫ້ແກ້ໄຂ (HR)</button>`;
     if (st !== 'ok') return `<p class="muted">ສະຖານະ: ${KPI_ST[st][0]}${st === 'appr' ? ' (' + esc(nm(A.B.approvers[e.code])) + ')' : ''}</p>`;
     return '';
   }
@@ -1163,7 +1218,7 @@ function makeDemoStore() {
 
   // ---------- results ----------
   function vResList() {
-    if (isHR()) return vHr('results');
+    if (can('results')) return vHr('results');
     const R = A.B.results;
     let h = `<h1>ຜົນປະເມີນ</h1>`;
     if (!R.length) return h + `<div class="card"><p>ຜົນຈະສະແດງຢູ່ນີ້ ຫຼັງຈາກ HR ປະກາດຜົນ.</p></div>`;
@@ -1192,7 +1247,7 @@ function makeDemoStore() {
   }
   function vRes(emp) {
     const r = A.B.results.find(x => x.emp === emp);
-    const back = isHR() ? '#hr/results' : '#res';
+    const back = can('results') ? '#hr/results' : '#res';
     if (!r) return `<a class="back" href="${back}">← ກັບຄືນ</a><div class="card"><p>ຍັງບໍ່ມີຜົນ</p></div>`;
     return `<a class="back" href="${back}">← ກັບຄືນ</a><h1>${esc(r.name)}</h1><p class="muted">${esc(r.dept)} · ກຸ່ມ ${esc(G(r.group).name)} · ${esc(A.B.round.name)}</p>
       <div class="card"><div class="row">${gradeBox(r)}<div class="grow"><div class="big">${r.total == null ? '—' : f1d(r.total) + '%'}</div>
@@ -1212,13 +1267,18 @@ function makeDemoStore() {
   }
 
   // ---------- HR ----------
-  const HR_TABS = [['progress', 'ຄວາມຄືບໜ້າ'], ['staff', 'ພະນັກງານ'], ['peers', 'ເພື່ອນຮ່ວມງານ'], ['results', 'ຜົນ'], ['round', 'ຮອບປະເມີນ'], ['config', 'ຕັ້ງຄ່າ']];
+  // [tab, ຊື່, ສິດທີ່ຕ້ອງມີ]
+  const HR_TABS = [['progress', 'ຄວາມຄືບໜ້າ', 'progress'], ['staff', 'ພະນັກງານ', 'staff'], ['roles', 'ສິດ ແລະ ໜ້າທີ່', 'roles'], ['peers', 'ເພື່ອນຮ່ວມງານ', 'peers'],
+    ['results', 'ຜົນ', 'results'], ['round', 'ຮອບປະເມີນ', 'round'], ['config', 'ຕັ້ງຄ່າ', 'config']];
+  const hrTabs = () => HR_TABS.filter(t => can(t[2]));
   function vHr(tab, arg) {
-    if (!isHR()) return notFound();
-    tab = tab || 'progress';
+    const tabs = hrTabs();
+    if (!tabs.length) return notFound();
+    tab = tab || tabs[0][0];
     const cur = { who: 'progress', import: 'staff', peer: 'peers' }[tab] || tab;
-    let h = `<h1>HR</h1><div class="tabs">${HR_TABS.map(([k, t]) => `<a href="#hr/${k}" class="${cur === k ? 'on' : ''}">${t}</a>`).join('')}</div>`;
-    const V = { progress: hrProgress, who: hrWho, staff: arg ? hrStaffEdit : hrStaff, import: hrImport, peers: hrPeers, peer: hrPeer, results: hrResults, round: hrRound, config: hrConfig }[tab];
+    if (!tabs.some(t => t[0] === cur)) return notFound();
+    let h = `<h1>HR</h1><div class="tabs">${tabs.map(([k, t]) => `<a href="#hr/${k}" class="${cur === k ? 'on' : ''}">${t}</a>`).join('')}</div>`;
+    const V = { progress: hrProgress, who: hrWho, staff: arg ? hrStaffEdit : hrStaff, import: hrImport, peers: hrPeers, peer: hrPeer, results: hrResults, round: hrRound, config: hrConfig, roles: arg ? hrRoleEdit : hrRoles }[tab];
     return h + (V ? V(arg) : '');
   }
   const evaluated = () => A.B.staff.filter(s => s.active !== false && G(s.group));
@@ -1297,7 +1357,7 @@ function makeDemoStore() {
     } else if (noPin.length) h += `<div class="alert">ມີ ${noPin.length} ຄົນ ຍັງບໍ່ມີ PIN (ເຂົ້າລະບົບບໍ່ໄດ້). <button class="link" data-act="pinsGen">ສ້າງ PIN ໃຫ້ທັງໝົດ</button></div>`;
     h += `<input class="in" id="hr-q" placeholder="ຄົ້ນຫາ ຊື່ / ລະຫັດ / ພະແນກ" value="${esc(A.hrQ)}" style="margin:12px 0">
       <div class="card">${list.map(s => `<a class="list-row" href="#hr/staff/${esc(s.code)}" style="color:inherit;text-decoration:none">
-        <div class="grow"><b>${esc(s.name)}</b> ${s.active === false ? chip('ປິດໃຊ້', 'grey') : ''}${(s.roles || []).map(r => ' ' + chip(ROLE_T[r])).join('')}
+        <div class="grow"><b>${esc(s.name)}</b> ${s.active === false ? chip('ປິດໃຊ້', 'grey') : ''}${(s.roles || []).map(r => ' ' + chip(roleName(r), r === 'ADMIN' ? 'teal' : '')).join('')}
         <div class="muted small">${esc(s.code)} · ${esc(s.pos)} · ${esc(s.dept)} · ${G(s.group) ? esc(G(s.group).name) : 'ບໍ່ຖືກປະເມີນ'} · ຫົວໜ້າ: ${esc(nm(s.sup))}</div></div>
         ${s.hasPin ? '' : chip('ບໍ່ມີ PIN', 'warn')}</a>`).join('') || '<p class="muted">ບໍ່ພົບ</p>'}</div>`;
     return h;
@@ -1319,7 +1379,7 @@ function makeDemoStore() {
         ${Object.entries(A.B.config.groups).map(([k, g]) => `<option value="${k}" ${s.group === k ? 'selected' : ''}>${esc(g.name)}</option>`).join('')}</select></label>
       <label class="f"><span>ຫົວໜ້າສາຍງານ (ຜູ້ປະເມີນຟອມ ① ②)</span><select class="in" name="sup">${staffOpts(s.sup, s.code, '— ບໍ່ມີ')}</select></label>
       <label class="f"><span>ຜູ້ອະນຸມັດ KPI (ວ່າງ = ຫົວໜ້າຂອງຫົວໜ້າ: ${esc(auto)})</span><select class="in" name="appr">${staffOpts(s.appr, s.code, '— ອັດຕະໂນມັດ')}</select></label>
-      <div class="f"><span class="muted">ບົດບາດ</span>${Object.entries(ROLE_T).map(([k, t]) => `<label class="check"><input type="checkbox" name="role" value="${k}" ${s.roles.includes(k) ? 'checked' : ''}> ${t}</label>`).join('')}
+      <div class="f"><span class="muted">ບົດບາດ ${can('roles') ? '' : '(ປ່ຽນໄດ້ສະເພາະຜູ້ມີສິດ "ກຳນົດສິດ")'}</span>${A.B.roles.map(r => `<label class="check"><input type="checkbox" name="role" value="${esc(r.code)}" ${s.roles.includes(r.code) ? 'checked' : ''} ${can('roles') ? '' : 'disabled'}> ${esc(r.name)}</label>`).join('')}
         <label class="check"><input type="checkbox" name="active" ${s.active !== false ? 'checked' : ''}> ໃຊ້ງານຢູ່</label></div>
       <button class="btn pri block">ບັນທຶກ</button></form>
       ${isNew ? '' : `<form class="card" data-submit="setPin"><h3>ຕັ້ງ PIN ໃໝ່</h3><p class="muted small">${s.hasPin ? 'ມີ PIN ແລ້ວ. ຕັ້ງໃໝ່ຈະອອກຈາກລະບົບທຸກເຄື່ອງຂອງຄົນນີ້.' : 'ຍັງບໍ່ມີ PIN.'}</p>
@@ -1329,7 +1389,7 @@ function makeDemoStore() {
   const IMP_COLS = ['code', 'name', 'dept', 'div', 'pos', 'group', 'sup', 'appr', 'roles'];
   function hrImport() {
     let h = `<a class="back" href="#hr/staff">← ລາຍຊື່</a><div class="card"><h3>ນຳເຂົ້າພະນັກງານ ຈາກ Excel</h3>
-      <p class="muted small">ກັອບປີ້ແຖວຈາກ Excel ແລ້ວວາງໃສ່ລຸ່ມນີ້. ລຳດັບຖັນ:<br><b>ລະຫັດ · ຊື່ ແລະ ນາມສະກຸນ · ພະແນກ · ຝ່າຍ · ຕຳແໜ່ງ · ກຸ່ມ KPI · ລະຫັດຫົວໜ້າ · ລະຫັດຜູ້ອະນຸມັດ · ບົດບາດ (HR/PRESIDENT)</b><br>
+      <p class="muted small">ກັອບປີ້ແຖວຈາກ Excel ແລ້ວວາງໃສ່ລຸ່ມນີ້. ລຳດັບຖັນ:<br><b>ລະຫັດ · ຊື່ ແລະ ນາມສະກຸນ · ພະແນກ · ຝ່າຍ · ຕຳແໜ່ງ · ກຸ່ມ KPI · ລະຫັດຫົວໜ້າ · ລະຫັດຜູ້ອະນຸມັດ · ລະຫັດບົດບາດ (${A.B.roles.map(r => esc(r.code)).join(', ')})</b><br>
       ກຸ່ມ KPI: ${Object.entries(A.B.config.groups).map(([k, g]) => esc(g.name)).join(', ')} (ຫຼື ວ່າງ). ລະຫັດທີ່ມີແລ້ວ ຈະຖືກອັບເດດ.</p>
       <textarea class="in" id="imp-text" rows="8" placeholder="E001	ນາງ ...	ບັນຊີ	..."></textarea>
       <button class="btn block" data-act="impParse" style="margin-top:8px">ກວດເບິ່ງກ່ອນ</button></div>`;
@@ -1440,6 +1500,47 @@ function makeDemoStore() {
       <button class="btn pri block" data-act="cfgSave">ບັນທຶກການຕັ້ງຄ່າ</button></fieldset>`;
     return h;
   }
+  function roleMembers(code) { return A.B.staff.filter(s => s.active !== false && (s.roles || []).includes(code)); }
+  function hrRoles() {
+    const R2 = A.B.roles, act = A.B.staff.filter(s => s.active !== false), none = act.filter(s => !(s.roles || []).length).length;
+    const segs = R2.map(r => [r.name, roleMembers(r.code).length]).concat([['ພະນັກງານທົ່ວໄປ', none]]).filter(x => x[1]);
+    const COL = ['var(--accent)', 'var(--teal)', '#1f2937', '#e7b416', '#7cbf3b', '#ef8a2f', '#6b7280'], tot = segs.reduce((a, b) => a + b[1], 0) || 1;
+    let h = `<div class="alert info">ສິດ ແມ່ນສິ່ງທີ່ບົດບາດນັ້ນເຮັດໄດ້ໃນໜ້າ HR. ໜ້າທີ່ປະເມີນ (ຫົວໜ້າ, ຜູ້ອະນຸມັດ, ເພື່ອນ) ກຳນົດໃນໜ້າ "ພະນັກງານ" ແລະ "ເພື່ອນຮ່ວມງານ". ປ່ຽນແລ້ວ ມີຜົນທັນທີ.</div>
+      <div class="card"><div class="card-h">${ic('users')}<h3>ການແບ່ງບົດບາດ</h3><span class="muted small">${act.length} ຄົນ</span></div>
+      <div class="rbar" role="img" aria-label="${segs.map(x => esc(x[0]) + ' ' + x[1]).join(', ')}">${segs.map((x, i) => `<i style="flex:${x[1]};background:${COL[i % COL.length]}"></i>`).join('')}</div>
+      <div class="legend" style="margin-top:8px">${segs.map((x, i) => `<span><i style="background:${COL[i % COL.length]}"></i>${esc(x[0])} <b>${x[1]}</b></span>`).join('')}</div></div>
+      <div class="btns" style="margin-top:0;margin-bottom:12px"><a class="btn pri" href="#hr/roles/new">+ ສ້າງບົດບາດໃໝ່</a></div>`;
+    h += `<div class="duties">${R2.map(r => {
+      const m = roleMembers(r.code);
+      return `<a class="card" href="#hr/roles/${esc(r.code)}"><div class="card-h">${ic('shield')}<h3>${esc(r.name)}</h3>${chip(r.code, r.code === 'ADMIN' ? 'teal' : 'grey')}</div>
+        <div class="small" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px">${r.perms.length ? r.perms.map(p => chip((PERM_T[p] || [p])[0])).join('') : '<span class="muted">ບໍ່ມີສິດໃນໜ້າ HR</span>'}</div>
+        <div class="muted small">${m.length ? m.length + ' ຄົນ: ' + m.slice(0, 4).map(x => esc(x.name)).join(', ') + (m.length > 4 ? ' …' : '') : 'ຍັງບໍ່ມີໃຜ'}</div></a>`;
+    }).join('')}</div>`;
+    return h;
+  }
+  function hrRoleEdit(code) {
+    const isNew = code === 'new', r = isNew ? { code: '', name: '', perms: [] } : A.B.roles.find(x => x.code === code);
+    if (!r) return notFound();
+    const locked = r.code === 'ADMIN';
+    if (!A.rsel || A.rsel.code !== code) A.rsel = { code, list: isNew ? [] : roleMembers(r.code).map(s => s.code) };
+    const q = (A.rq || '').toLowerCase();
+    const people = A.B.staff.filter(s => s.active !== false && (!q || (s.name + ' ' + s.code + ' ' + s.dept).toLowerCase().includes(q)));
+    return `<a class="back" href="#hr/roles">← ສິດ ແລະ ໜ້າທີ່</a><h2>${isNew ? 'ສ້າງບົດບາດໃໝ່' : esc(r.name)}</h2>
+      <form class="card" id="rf" data-submit="roleSave">
+        <div class="row"><label class="f grow"><span>ຊື່ບົດບາດ *</span><input class="in" name="name" value="${esc(r.name)}" required maxlength="60" ${locked ? 'readonly' : ''} placeholder="ເຊັ່ນ ຜູ້ຊ່ວຍ HR"></label>
+        <label class="f" style="width:170px"><span>ລະຫັດ (ອັງກິດ) *</span><input class="in" name="code" value="${esc(r.code)}" required pattern="[A-Za-z0-9_]{2,20}" ${isNew ? '' : 'readonly'} autocapitalize="characters" placeholder="HRASSIST"></label></div>
+        <div class="sec-h"><h3>ສິດ</h3>${locked ? chip('Admin ມີທຸກສິດສະເໝີ', 'teal') : ''}</div>
+        ${Object.entries(PERM_T).map(([k, [t, d]]) => `<label class="check" style="align-items:flex-start;border-bottom:1px solid var(--line);padding:8px 0">
+          <input type="checkbox" name="perm" value="${k}" ${r.perms.includes(k) || locked ? 'checked' : ''} ${locked ? 'disabled' : ''} style="margin-top:4px">
+          <span><b>${t}</b><br><span class="muted small">${d}</span></span></label>`).join('')}
+        <div class="sec-h" style="margin-top:16px"><h3 id="rmem-n">ຄົນທີ່ມີບົດບາດນີ້ (${A.rsel.list.length})</h3></div>
+        ${can('staff') ? `<input class="in" id="rq" placeholder="ຄົ້ນຫາຊື່ / ລະຫັດ / ພະແນກ" value="${esc(A.rq || '')}" style="margin-bottom:8px">
+        <div style="max-height:320px;overflow-y:auto">${people.map(s => `<label class="check" style="border-bottom:1px solid var(--line)"><input type="checkbox" class="rmem" value="${esc(s.code)}" ${A.rsel.list.includes(s.code) ? 'checked' : ''}>
+          <span class="grow">${esc(s.name)} <span class="muted small">${esc(s.code)} · ${esc(s.pos)} · ${esc(s.dept)}</span></span></label>`).join('')}</div>`
+        : `<p class="muted small">ການເລືອກຄົນ ຕ້ອງມີສິດ "ຈັດການພະນັກງານ" ນຳ</p>`}
+        <div class="btns">${isNew || locked ? '' : `<button type="button" class="btn bad" data-act="roleDel" data-code="${esc(r.code)}">ລຶບບົດບາດ</button>`}<button class="btn pri">ບັນທຶກ</button></div>
+      </form>`;
+  }
   function notFound() { return `<a class="back" href="#home">← ກັບຄືນ</a><div class="card"><p>ບໍ່ພົບໜ້ານີ້ ຫຼື ທ່ານບໍ່ມີສິດເບິ່ງ</p></div>`; }
 
   // ---------- render ----------
@@ -1464,6 +1565,7 @@ function makeDemoStore() {
       const R = { home: vHome, kpi: vKpi, pres: vPres, form: vForm, res: p.length ? vRes : vResList, print: vPrint, hr: vHr };
       if (r !== 'kpi') A.kedit = null;
       if (r !== 'hr' || p[0] !== 'peer') A.peerSel = null;
+      if (r !== 'hr' || p[0] !== 'roles' || !p[1]) { A.rsel = null; A.rq = ''; }
       html = crumbs(r, p) + (R[r] || vHome)(...p);
     }
     $('#view').innerHTML = `<div class="wrap">${html}</div>`;
@@ -1598,12 +1700,17 @@ function makeDemoStore() {
       if (r.ok) toast('ບັນທຶກແລ້ວ', 'ok');
     }
   };
+  ACT.roleDel = async el => {
+    if (!confirm('ລຶບບົດບາດນີ້?')) return;
+    const r = await call('roleDelete', { code: el.dataset.code }, { noRender: true });
+    if (r.ok) { toast('ລຶບແລ້ວ', 'ok'); A.rsel = null; go('#hr/roles'); } else render();
+  };
   const SUBMIT = {
     login() { call('login', { code: $('#lg-code').value, pin: $('#lg-pin').value }).then(r => { if (r.ok) go('#home'); }); },
     async staffSave(form) {
       const fd = new FormData(form), row = {};
       for (const k of ['code', 'name', 'pos', 'dept', 'div', 'group', 'sup', 'appr']) row[k] = String(fd.get(k) || '');
-      row.roles = fd.getAll('role'); row.active = fd.get('active') === 'on';
+      row.roles = can('roles') ? fd.getAll('role') : ((S(row.code) || {}).roles || []); row.active = fd.get('active') === 'on';
       const r = await call('staffSave', { row }, { noRender: true });
       if (r.ok) { toast('ບັນທຶກແລ້ວ', 'ok'); go('#hr/staff'); } else render();
     },
@@ -1612,6 +1719,23 @@ function makeDemoStore() {
       const r = await call('setPin', { code: decodeURIComponent(code), pin }, { noRender: true });
       if (r.ok) toast('ຕັ້ງ PIN ແລ້ວ', 'ok');
       render();
+    },
+    async roleSave(form) {
+      const fd = new FormData(form), code = String(fd.get('code') || '').trim().toUpperCase();
+      const was = roleMembers(code).map(s => s.code), want = A.rsel ? A.rsel.list : was;
+      if (code !== 'ADMIN') {
+        const r = await call('roleSave', { role: { code, name: fd.get('name'), perms: fd.getAll('perm') } }, { noRender: true });
+        if (!r.ok) return render();
+      }
+      const changed = A.B.staff.filter(s => was.includes(s.code) !== want.includes(s.code)).map(s => {
+        const roles = (s.roles || []).filter(x => x !== code).concat(want.includes(s.code) ? [code] : []);
+        return { code: s.code, name: s.name, dept: s.dept, div: s.div, pos: s.pos, group: s.group, sup: s.sup, appr: s.appr, roles, active: s.active };
+      });
+      if (changed.length && can('staff')) {
+        const r2 = await call('staffImport', { rows: changed }, { noRender: true });
+        if (!r2.ok) return render();
+      }
+      toast('ບັນທຶກແລ້ວ — ມີຜົນທັນທີ', 'ok'); A.rsel = null; go('#hr/roles');
     },
     async roundCreate() {
       const r = await call('roundCreate', { name: $('#rn').value, copyKpi: $('#rcopy').checked }, { noRender: true });
@@ -1644,6 +1768,7 @@ function makeDemoStore() {
     const t = e.target;
     if (t.dataset.kf && A.kedit) { A.kedit.items[Number(t.dataset.i)][t.dataset.kf] = t.value; updWsum(); }
     else if (t.closest('#fm')) updLive();
+    else if (t.id === 'rq') { A.rq = t.value; render(); const q = $('#rq'); q.focus(); q.setSelectionRange(q.value.length, q.value.length); }
     else if (t.id === 'hr-q') { A.hrQ = t.value; render(); const q = $('#hr-q'); q.focus(); q.setSelectionRange(q.value.length, q.value.length); }
   });
   document.addEventListener('change', e => {
@@ -1651,6 +1776,11 @@ function makeDemoStore() {
     if (t.closest('#fm')) updLive();
     else if (t.id === 'hr-dept') { A.hrDept = t.value; render(); }
     else if (t.id === 'hr-todo') { A.hrTodo = t.checked; render(); }
+    else if (t.classList.contains('rmem')) {
+      const l = A.rsel.list;
+      if (t.checked) { if (!l.includes(t.value)) l.push(t.value); } else l.splice(l.indexOf(t.value), 1);
+      const h3 = $('#rmem-n'); if (h3) h3.textContent = `ຄົນທີ່ມີບົດບາດນີ້ (${l.length})`;
+    }
     else if (t.id === 'pres-all') $$('.pres-k').forEach(x => { x.checked = t.checked; });
     else if (t.classList.contains('peer-c')) {
       const l = A.peerSel.list;
