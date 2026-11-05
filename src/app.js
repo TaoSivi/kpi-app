@@ -47,7 +47,8 @@
     target: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/>',
     home: '<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
     clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
-    check: '<path d="m5 12.5 4.5 4.5L19 7.5"/>'
+    check: '<path d="m5 12.5 4.5 4.5L19 7.5"/>',
+    trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>'
   };
   // ຮູບປະກອບເມືອງ ໃນແຖບຂ້າງ (ຕົກແຕ່ງເທົ່ານັ້ນ)
   const CITY_SVG = `<svg class="city" viewBox="0 0 312 330" preserveAspectRatio="xMidYMax slice" aria-hidden="true" focusable="false"><defs>
@@ -240,7 +241,7 @@
 
   // ---------- KPI ----------
   function steps(st) {
-    const i = KPI_STEPS.findIndex(s => s[0] === st);
+    const i = KPI_STEPS.findIndex(s => s[0] === (st === 'none' ? 'draft' : st));
     return `<div class="chev" role="list" aria-label="ຂັ້ນຕອນ KPI">${KPI_STEPS.map((s, j) => `<span role="listitem" class="${j < i || st === 'ok' ? 'done' : j === i ? 'cur' : ''}" ${j === i ? 'aria-current="step"' : ''}>${s[1]}</span>`).join('')}</div>`;
   }
   function kpiTable(items, f1i) {
@@ -264,14 +265,13 @@
         A.kedit = { emp, items };
       }
       h += `<div class="alert info">ຂຽນຕົວຊີ້ວັດທີ່ວັດໄດ້ ແລະ ນ້ຳໜັກ %. ນ້ຳໜັກລວມຕ້ອງເທົ່າກັບ <b>${g.w[0]}%</b>.</div>`;
-      h += A.kedit.items.map((it, i) => `<div class="item"><label class="f"><span>ຕົວຊີ້ວັດ ${i + 1}</span>
-          <textarea class="in" rows="2" data-kf="t" data-i="${i}" maxlength="200">${esc(it.t)}</textarea></label>
-        <div class="row"><label class="f grow"><span>ເປົ້າໝາຍ / ວິທີວັດ</span><input class="in" data-kf="target" data-i="${i}" value="${esc(it.target)}" maxlength="300"></label>
-        <label class="f" style="width:110px"><span>ນ້ຳໜັກ %</span><input class="in" type="number" inputmode="decimal" min="1" max="100" data-kf="w" data-i="${i}" value="${esc(it.w)}"></label></div>
-        <button class="link" data-act="kpiDel" data-i="${i}">ລຶບຕົວຊີ້ວັດນີ້</button></div>`).join('');
-      h += `<button class="btn block" data-act="kpiAdd" ${A.kedit.items.length >= 10 ? 'disabled' : ''}>+ ເພີ່ມຕົວຊີ້ວັດ</button>
-        <div class="sticky card" style="margin-top:12px"><div id="wsum" class="wsum"></div>
-        <div class="btns"><button class="btn" data-act="kpiSave">ບັນທຶກຮ່າງ</button><button class="btn pri" data-act="kpiSubmit">ສົ່ງໃຫ້ ${esc(e.name)} ຮັບຮູ້</button></div></div>`;
+      h += A.kedit.items.map((it, i) => `<div class="item kitem"><span class="qn">${i + 1}</span><div class="kfields">
+          <label class="f"><span>ຕົວຊີ້ວັດ</span><textarea class="in" rows="2" data-kf="t" data-i="${i}" maxlength="200">${esc(it.t)}</textarea></label>
+          <label class="f"><span>ເປົ້າໝາຍ / ວິທີວັດ</span><input class="in" data-kf="target" data-i="${i}" value="${esc(it.target)}" maxlength="300"></label>
+          <label class="f"><span>ນ້ຳໜັກ %</span><input class="in" type="number" inputmode="decimal" min="1" max="100" data-kf="w" data-i="${i}" value="${esc(it.w)}"></label></div>
+        <button class="icon-btn" data-act="kpiDel" data-i="${i}" aria-label="ລຶບຕົວຊີ້ວັດ ${i + 1}" title="ລຶບ">${ic('trash')}</button></div>`).join('');
+      h += `<button class="btn block" data-act="kpiAdd" style="margin-bottom:16px" ${A.kedit.items.length >= 10 ? 'disabled' : ''}>+ ເພີ່ມຕົວຊີ້ວັດ</button>
+        <div class="fbar kbar no-print"><div id="wsum" class="wsum"></div><div class="kbtns"><button class="btn" data-act="kpiSave">ບັນທຶກຮ່າງ</button><button class="btn pri" data-act="kpiSubmit">ສົ່ງໃຫ້ ${esc(e.name)} ຮັບຮູ້</button></div></div>`;
       A.after = updWsum;
     } else if (!k) {
       h += `<div class="card"><p>ຍັງບໍ່ໄດ້ຕັ້ງ KPI. ຫົວໜ້າ (${esc(nm(e.sup))}) ເປັນຜູ້ຕັ້ງ.</p></div>`;
@@ -318,11 +318,6 @@
   }
 
   // ---------- forms ----------
-  function rateQ(name, i, text, val, dis) {
-    return `<fieldset class="q" data-q="${name}.${i}" ${dis ? 'disabled' : ''}><legend>${i + 1}. ${esc(text)}</legend><div class="rate">
-      ${[1, 2, 3, 4, 5].map(v => `<label><input type="radio" name="${name}.${i}" value="${v}" ${val === v ? 'checked' : ''}><span><b>${v}</b><small>${RATE[v - 1]}</small></span></label>`).join('')}
-      </div></fieldset>`;
-  }
   function formSpec(n, e) {
     const g = G(e.group), Q = A.B.config.questions, k = kpiOf(e.code);
     if (n === 1) return { title: 'ປະເມີນລວມ (ຟອມ ①)', groups: [['iii', g.iii]].concat(g.w[3] ? [['iv', g.iv]] : []), items: k ? k.items : [], texts: ['str', 'imp', 'cmt'] };
@@ -340,26 +335,41 @@
     let st = prev ? prev.ans : null;
     if (!done) { try { st = JSON.parse(LSG(draftKey(n, emp)) || 'null') || st; } catch (x) { /* ignore */ } }
     st = st || {};
-    let h = `<a class="back" href="#home">← ກັບຄືນ</a><h1>${sp.title}</h1><p class="muted">ຜູ້ຖືກປະເມີນ: <b>${esc(e.name)}</b> · ${esc(e.pos)} · ${esc(e.dept)}</p>`;
-    if (done) h += `<div class="alert ok">ທ່ານສົ່ງຟອມນີ້ແລ້ວ ${fdate(prev.at)}. ຖ້າຕ້ອງແກ້ ໃຫ້ຕິດຕໍ່ HR.</div>`;
-    else h += `<div class="alert info">ກົດເລືອກຄະແນນ 1–5 ທຸກຂໍ້: 1 ອ່ອນ · 2 ຄວນປັບປຸງ · 3 ພໍໃຊ້ · 4 ດີ · 5 ດີເລີດ${n >= 3 ? '<br>ຊື່ຂອງທ່ານ ຈະບໍ່ສະແດງໃຫ້ຜູ້ຖືກປະເມີນ ຫຼື ຫົວໜ້າເຫັນ.' : ''}</div>`;
-    h += `<div id="fm" data-n="${n}" data-emp="${esc(emp)}">`;
-    if (n === 1) {
-      h += `<div class="card"><div class="sec-h"><h2>I. ວຽກງານວິຊາສະເພາະ</h2><span class="chip">${g.w[0]}%</span></div>
-        <p class="muted small">ໃສ່ % ທີ່ບັນລຸເປົ້າໝາຍ (0–100) ຂອງແຕ່ລະຕົວຊີ້ວັດ</p>` +
-        sp.items.map((it, i) => `<div class="item" data-pitem="${i}"><b>${i + 1}. ${esc(it.t)}</b> <span class="chip">${it.w}%</span>
-          ${it.target ? `<div class="muted small">ເປົ້າໝາຍ: ${esc(it.target)}</div>` : ''}
-          <div class="pctrow" style="margin-top:6px"><input class="in" type="number" inputmode="decimal" min="0" max="100" data-p="${i}" aria-label="% ບັນລຸ ${esc(it.t)}"
-            value="${st.i && st.i[i] != null ? st.i[i] : ''}" ${done ? 'disabled' : ''}><span>%</span>
-          ${done ? '' : `<div class="quick">${[100, 90, 80, 70, 60, 50].map(v => `<button type="button" data-act="setPct" data-i="${i}" data-v="${v}">${v}</button>`).join('')}</div>`}</div></div>`).join('') + `</div>`;
+    const kind = { 1: 'ປະເມີນລວມ', 2: f2Title(g), 3: 'ປະເມີນເພື່ອນຮ່ວມງານ', 4: 'ປະເມີນຫົວໜ້າ' }[n];
+    let h = `<a class="back" href="#home">← ກັບຄືນ</a><div class="card fhead"><div class="fh-top"><div class="avatar lg" aria-hidden="true">${esc(initial(e.name))}</div>
+      <div class="grow"><div class="fh-kind"><span class="chip fkind">${BADGE[n]} ຟອມ ${n}</span><span class="muted">${esc(kind)}</span></div>
+      <h1>${esc(e.name)}</h1><div class="muted">${esc(e.pos)} · ${esc(e.dept)} · ກຸ່ມ ${esc(g.name)}</div></div>${done ? chip('ສົ່ງແລ້ວ ' + fdate(prev.at), 'ok') : ''}</div>`;
+    if (done) h += `<div class="alert ok" style="margin:14px 0 0">ທ່ານສົ່ງຟອມນີ້ແລ້ວ. ຖ້າຕ້ອງແກ້ ໃຫ້ຕິດຕໍ່ HR.</div>`;
+    else {
+      h += `<div class="scale" aria-label="ຄວາມໝາຍຂອງຄະແນນ">${RATE.map((t, i) => `<span><i style="background:var(--g${i + 1})"></i>${i + 1} ${t}</span>`).join('')}</div>`;
+      if (n >= 3) h += `<div class="fnote">${ic('shield')} ຊື່ຂອງທ່ານ ຈະບໍ່ສະແດງໃຫ້ຜູ້ຖືກປະເມີນ ຫຼື ຫົວໜ້າເຫັນ</div>`;
+      if (n === 1) h += `<div class="ftiles-h muted small">ຄະແນນທີ່ທ່ານໃຫ້ຕອນນີ້ · ດ້ານ II ມາຈາກຟອມ ②③④</div><div id="live" class="ftiles"></div>`;
     }
-    const secT = { iii: ['III. ລະບຽບວິໄນ', g.w[2] + '%'], iv: ['IV. ເສດຖະກິດ ການເມືອງ-ສັງຄົມ', g.w[3] + '%'], q: [n === 2 ? g.iiName : n === 3 ? 'ການຮ່ວມມື' : 'ພາວະຜູ້ນຳ ຂອງຫົວໜ້າ', ''], s: ['ຄວາມເສຍສະຫຼະຕໍ່ອົງກອນ', ''] };
-    for (const [name, qs] of sp.groups)
-      h += `<div class="card"><div class="sec-h"><h2>${secT[name][0]}</h2>${secT[name][1] ? chip(secT[name][1]) : ''}</div>${qs.map((q, i) => rateQ(name, i, q, st[name] && st[name][i], done)).join('')}</div>`;
-    h += `<div class="card">${sp.texts.map(t => `<label class="f"><span>${TEXT_T[t]}</span><textarea class="in" data-t="${t}" maxlength="2000" ${done ? 'disabled' : ''}>${esc(st[t])}</textarea></label>`).join('')}</div></div>`;
+    h += `</div><div id="fm" data-n="${n}" data-emp="${esc(emp)}">`;
+    const sec = (key, num, title, sub, weight, rows) => `<section class="card fsec" data-sec="${key}"><div class="fsec-h"><span class="snum">${num}</span>
+      <div class="grow"><h2>${title}</h2>${sub ? `<div class="muted small">${sub}</div>` : ''}</div>${weight ? chip(weight) : ''}${done ? '' : '<span class="sprog">0/0</span>'}</div><div class="qlist">${rows}</div></section>`;
+    const rrow = (name, i, text, val) => `<div class="qrow" role="radiogroup" aria-labelledby="q-${name}-${i}" data-q="${name}.${i}"><div class="qt"><span class="qn">${i + 1}</span><span class="qtx" id="q-${name}-${i}">${esc(text)}</span></div>
+      <div class="rate">${[1, 2, 3, 4, 5].map(v => `<label><input type="radio" name="${name}.${i}" value="${v}" ${val === v ? 'checked' : ''} ${done ? 'disabled' : ''}><span><b>${v}</b><small>${RATE[v - 1]}</small></span></label>`).join('')}</div></div>`;
+    if (n === 1) {
+      h += sec('i', 'I', 'ວຽກງານວິຊາສະເພາະ', 'ໃສ່ % ທີ່ບັນລຸເປົ້າໝາຍ (0–100) ຂອງແຕ່ລະຕົວຊີ້ວັດ', g.w[0] + '%', sp.items.map((it, i) =>
+        `<div class="qrow krow" data-pitem="${i}"><div class="qt"><span class="qn">${i + 1}</span><div class="qtx"><b>${esc(it.t)}</b> ${chip(it.w + '%')}
+          ${it.target ? `<div class="muted small">ເປົ້າໝາຍ: ${esc(it.target)}</div>` : ''}</div></div>
+          <div class="kin"><div class="pin"><input class="in" type="number" inputmode="decimal" min="0" max="100" data-p="${i}" aria-label="% ບັນລຸ ${esc(it.t)}"
+            value="${st.i && st.i[i] != null ? st.i[i] : ''}" ${done ? 'disabled' : ''}><span>%</span></div>
+          ${done ? '' : `<div class="quick">${[100, 90, 80, 70, 60, 50].map(v => `<button type="button" data-act="setPct" data-i="${i}" data-v="${v}" aria-label="ຕັ້ງ ${v}%">${v}</button>`).join('')}</div>`}</div></div>`).join(''));
+    }
+    const HINT = 'ໃຫ້ຄະແນນ 1–5 ແຕ່ລະຂໍ້';
+    const SEC = {
+      iii: ['III', 'ລະບຽບວິໄນ', HINT, g.w[2] + '%'], iv: ['IV', 'ເສດຖະກິດ ການເມືອງ-ສັງຄົມ', HINT, g.w[3] + '%'],
+      q: [n === 2 ? 'II' : ic(n === 3 ? 'users' : 'pulse'), n === 2 ? g.iiName : n === 3 ? 'ການຮ່ວມມື' : 'ພາວະຜູ້ນຳ ຂອງຫົວໜ້າ', HINT, ''],
+      s: ['II', 'ຄວາມເສຍສະຫຼະຕໍ່ອົງກອນ', HINT, '']
+    };
+    for (const [name, qs] of sp.groups) h += sec(name, ...SEC[name], qs.map((q, i) => rrow(name, i, q, st[name] && st[name][i])).join(''));
+    h += `<section class="card fsec"><div class="fsec-h"><span class="snum">${ic('file')}</span><div class="grow"><h2>ຄຳເຫັນ</h2></div></div><div class="tgrid">${sp.texts.map(t =>
+      `<label class="f${t === 'cmt' || sp.texts.length === 1 ? ' wide' : ''}"><span>${TEXT_T[t]}</span><textarea class="in" data-t="${t}" maxlength="2000" ${done ? 'disabled' : ''}>${esc(st[t])}</textarea></label>`).join('')}</div></section></div>`;
     if (!done) {
-      h += `<div class="sticky card">${n === 1 ? '<div id="live" class="small" style="margin-bottom:6px"></div>' : ''}
-        <div id="fmiss" class="small muted"></div><button class="btn pri block" data-act="formSubmit">ສົ່ງຟອມ</button></div>`;
+      h += `<div class="fbar no-print"><div class="fb-prog"><div class="t" id="fmiss"></div><div class="bar" style="margin-top:6px"><i id="fbar"></i></div></div>
+        <button id="fsub" class="btn pri" data-act="formSubmit"><span class="rdy">${ic('check')}</span> ສົ່ງຟອມ</button></div>`;
       A.after = updLive;
     }
     return h;
@@ -381,14 +391,23 @@
   function updLive() {
     const c = collectForm(); if (!c) return;
     LSS(draftKey(c.n, c.e.code), JSON.stringify(c.ans));
-    const left = missing(c).length;
-    const fmiss = $('#fmiss'); if (fmiss) fmiss.textContent = left ? `ຍັງເຫຼືອ ${left} ຂໍ້` : 'ຕອບຄົບທຸກຂໍ້ແລ້ວ';
-    $$('.q.miss').forEach(el => { if (el.querySelector('input:checked')) el.classList.remove('miss'); });
+    const miss = missing(c), total = c.sp.groups.reduce((a, [, qs]) => a + qs.length, 0) + (c.n === 1 ? c.sp.items.length : 0), got = total - miss.length;
+    const t = $('#fmiss'); if (t) t.textContent = miss.length ? `ຕອບແລ້ວ ${got}/${total} ຂໍ້ · ຍັງເຫຼືອ ${miss.length}` : `ຕອບຄົບທຸກຂໍ້ແລ້ວ (${total}/${total})`;
+    const bar = $('#fbar'); if (bar) bar.style.width = (total ? got / total * 100 : 0) + '%';
+    const sub = $('#fsub'); if (sub) sub.classList.toggle('ready', !miss.length);
+    $$('#fm .qrow').forEach(el => {
+      const ok = el.dataset.q ? !!$('input:checked', el) : (() => { const v = $('[data-p]', el).value; return v !== '' && Number(v) >= 0 && Number(v) <= 100; })();
+      el.classList.toggle('ans', ok); if (ok) el.classList.remove('miss');
+    });
+    $$('#fm .fsec[data-sec]').forEach(sec => {
+      const rows = $$('.qrow', sec), k = rows.filter(r => r.classList.contains('ans')).length, sp = $('.sprog', sec);
+      if (sp) { sp.textContent = `${k}/${rows.length}`; sp.classList.toggle('full', k === rows.length); }
+    });
     const live = $('#live'); if (!live) return;
     const g = G(c.e.group), I = c.sp.items.reduce((s, it, i) => s + (c.ans.i[i] || 0) * it.w / 100, 0);
     const p3 = c.ans.iii.includes(null) ? null : pct15(c.ans.iii), p4 = !g.w[3] ? 100 : c.ans.iv.includes(null) ? null : pct15(c.ans.iv);
-    live.innerHTML = `ຄະແນນທີ່ທ່ານໃຫ້: I <b>${f1d(I)}</b>/${g.w[0]} · III <b>${p3 == null ? '—' : f1d(p3 * g.w[2] / 100)}</b>/${g.w[2]}` +
-      (g.w[3] ? ` · IV <b>${p4 == null ? '—' : f1d(p4 * g.w[3] / 100)}</b>/${g.w[3]}` : '') + ` <span class="muted">(ດ້ານ II ມາຈາກຟອມ ②③④)</span>`;
+    const tile = (l, v, m) => `<div class="ftile"><small>${l}</small><b>${v}<span> / ${m}</span></b></div>`;
+    live.innerHTML = tile('ດ້ານ I', f1d(I), g.w[0]) + tile('ດ້ານ III', p3 == null ? '—' : f1d(p3 * g.w[2] / 100), g.w[2]) + (g.w[3] ? tile('ດ້ານ IV', p4 == null ? '—' : f1d(p4 * g.w[3] / 100), g.w[3]) : '');
   }
 
   // ---------- results ----------
@@ -548,8 +567,8 @@
     const auto = !isNew && s.sup ? nm((S(s.sup) || {}).sup) : '—';
     return `<a class="back" href="#hr/staff">← ລາຍຊື່</a><h2>${isNew ? 'ເພີ່ມພະນັກງານ' : esc(s.name)}</h2>
       <form class="card" id="sf" data-submit="staffSave">
-      ${fld('code', 'ລະຫັດພະນັກງານ *', isNew ? 'required autocapitalize="characters"' : 'readonly')}${fld('name', 'ຊື່ ແລະ ນາມສະກຸນ *', 'required')}
-      ${fld('pos', 'ຕຳແໜ່ງ')}${fld('dept', 'ພະແນກ')}${fld('div', 'ຝ່າຍ')}
+      <div class="fgrid">${fld('code', 'ລະຫັດພະນັກງານ *', isNew ? 'required autocapitalize="characters"' : 'readonly')}${fld('name', 'ຊື່ ແລະ ນາມສະກຸນ *', 'required')}
+      ${fld('pos', 'ຕຳແໜ່ງ')}${fld('dept', 'ພະແນກ')}${fld('div', 'ຝ່າຍ')}</div>
       <label class="f"><span>ກຸ່ມ KPI</span><select class="in" name="group"><option value="">— ບໍ່ຖືກປະເມີນ (ເຊັ່ນ ຜູ້ອຳນວຍການ, ປະທານ)</option>
         ${Object.entries(A.B.config.groups).map(([k, g]) => `<option value="${k}" ${s.group === k ? 'selected' : ''}>${esc(g.name)}</option>`).join('')}</select></label>
       <label class="f"><span>ຫົວໜ້າສາຍງານ (ຜູ້ປະເມີນຟອມ ① ②)</span><select class="in" name="sup">${staffOpts(s.sup, s.code, '— ບໍ່ມີ')}</select></label>
@@ -801,7 +820,7 @@
     setPct(el) { const i = $(`[data-p="${el.dataset.i}"]`); i.value = el.dataset.v; updLive(); },
     async formSubmit() {
       const c = collectForm(), miss = missing(c);
-      $$('.q.miss, .item.miss').forEach(x => x.classList.remove('miss'));
+      $$('.qrow.miss').forEach(x => x.classList.remove('miss'));
       if (miss.length) {
         miss.forEach(s => { const el = $(s); if (el) el.classList.add('miss'); });
         $(miss[0]).scrollIntoView({ behavior: 'smooth', block: 'center' });
