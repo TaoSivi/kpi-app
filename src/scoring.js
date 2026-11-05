@@ -7,6 +7,7 @@ const SPLIT_HEAD = { sup: 50, sub: 30, peer: 10, sac: 10 };
 const SPLIT_STD = { sup: 80, sub: 0, peer: 10, sac: 10 };
 
 const DEFAULT_CONFIG = {
+  orgName: 'ກຸ່ມບໍລິສັດ ລາວໃຕ້ ການຄ້າ ແລະ ການລົງທຶນ ຈຳກັດ',
   groups: {
     HEAD_DEPT: { name: 'ຫົວໜ້າ/ຮອງພະແນກ', w: [60, 20, 15, 5], split: SPLIT_HEAD, iiName: LEAD, q2: 'lead', iii: III_STD, iv: IV_STD },
     HEAD_SEC: { name: 'ຫົວໜ້າຂະແໜງ', w: [65, 15, 15, 5], split: SPLIT_HEAD, iiName: LEAD, q2: 'lead', iii: III_STD, iv: IV_STD },

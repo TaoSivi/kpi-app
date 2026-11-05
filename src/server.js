@@ -287,8 +287,12 @@ function staffImport(X, u, req) {
   if (!Array.isArray(req.rows) || !req.rows.length) throw E('ບໍ່ມີຂໍ້ມູນ');
   upsertStaff(X, req.rows);
 }
+// req = {code, pin} ຫຼື {list:[{code, pin}]} (ທັງຊຸດ ສຳເລັດ ຫຼື ລົ້ມເຫຼວພ້ອມກັນ)
 function setPin(X, u, req) {
   X.need(X.isHR(u));
+  for (const it of req.list || [req]) setOnePin(X, it);
+}
+function setOnePin(X, req) {
   const s = X.by(String(req.code || '').toUpperCase());
   if (!s) throw E('ບໍ່ພົບພະນັກງານ');
   if (!/^\d{4,6}$/.test(String(req.pin || ''))) throw E('PIN ຕ້ອງເປັນຕົວເລກ 4–6 ຕົວ');
@@ -296,10 +300,14 @@ function setPin(X, u, req) {
   X.db.sessions = X.db.sessions.filter(x => x.code !== s.code);
   X.ch.add('staff'); X.ch.add('sessions');
 }
+// req = {emp, peers} ຫຼື {list:[{emp, peers}]}
 function peerSet(X, u, req) {
   X.need(X.isHR(u));
   const r = X.openRound();
   if (!r) throw E('ບໍ່ມີຮອບປະເມີນທີ່ເປີດຢູ່');
+  for (const it of req.list || [req]) peerSetOne(X, r, it);
+}
+function peerSetOne(X, r, req) {
   const e = X.by(req.emp);
   if (!X.evaluated(e)) throw E('ບໍ່ພົບຜູ້ຖືກປະເມີນ');
   const peers = [...new Set((req.peers || []).map(String))];
@@ -328,6 +336,7 @@ function configSave(X, u, req) {
   }
   for (const q of Object.keys(cfg.questions)) if (n.questions && n.questions[q]) cfg.questions[q] = strs(n.questions[q]);
   if (n.iTemplate) cfg.iTemplate = strs(n.iTemplate);
+  if (n.orgName != null) cfg.orgName = String(n.orgName).trim().slice(0, 120);
   const errs = SC.validateConfig(cfg);
   if (errs.length) throw E(errs.join('\n'));
   X.db.config = cfg; X.cfg = cfg; X.ch.add('config');

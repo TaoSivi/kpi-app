@@ -134,6 +134,15 @@ bad(HR('roundCreate', { name: 'ຊ້ຳ' }), /ເປີດ/);
   const k = store.raw().kpi.find(k => k.round === b.round.id && k.emp === 'S01');
   assert.equal(k.status, 'draft'); assert.equal(k.items.length, 2);
 }
+// batch PIN + batch peers (atomic: one bad item → nothing saved)
+bad(HR('setPin', { list: [{ code: 'S02', pin: '5555' }, { code: 'S03', pin: '12' }] }), /PIN/);
+bad(login('S02', '5555'));
+ok(HR('setPin', { list: [{ code: 'S02', pin: '5555' }, { code: 'S03', pin: '666666' }] }));
+ok(login('S02', '5555')); ok(login('S03', '666666'));
+ok(HR('peerSet', { list: [{ emp: 'S01', peers: ['V01'] }, { emp: 'S02', peers: ['A01', 'X01'] }] }));
+assert.equal(store.raw().peers.filter(p => p.emp === 'S02').length, 2);
+bad(HR('peerSet', { list: [{ emp: 'S01', peers: ['V02'] }, { emp: 'S02', peers: ['S02'] }] }));
+assert.ok(!store.raw().peers.some(p => p.by === 'V02'));
 ok(as('S01')('logout'));
 bad(S01('boot'));
 console.log('server: all passed');
