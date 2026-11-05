@@ -13,4 +13,5 @@ const js = "'use strict';\n" + join(['scoring.js', 'seed.js', 'server.js', 'stor
 if (/<\/script/i.test(js)) throw new Error('JS ມີ </script> — ຕ້ອງ escape');
 const html = src('index.html').replace('/*CSS*/', () => css).replace('/*JS*/', () => js);
 fs.writeFileSync(path.join(__dirname, 'dist', 'index.html'), html, 'utf8');
+fs.writeFileSync(path.join(__dirname, 'index.html'), html, 'utf8');  // GitHub Pages serves the repo root
 console.log('built dist/index.html', (html.length / 1024).toFixed(0) + ' KB; dist/Code.gs', (gs.length / 1024).toFixed(0) + ' KB');
