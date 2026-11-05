@@ -21,6 +21,28 @@
   const RATE = ['ອ່ອນ', 'ຄວນປັບປຸງ', 'ພໍໃຊ້', 'ດີ', 'ດີເລີດ'];
   const BADGE = { 1: '①', 2: '②', 3: '③', 4: '④' };
   const ROLE_T = { HR: 'HR', PRESIDENT: 'ປະທານ' };
+  const ICONS = {
+    list: '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4h6v3H9zM9 12h6M9 16h4"/>',
+    chart: '<path d="M4 20V10M10 20V4M16 20v-7M21 20H3"/>',
+    gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1 7 17M17 7l2.1-2.1"/>',
+    users: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M21.5 20a6 6 0 0 0-4-5.6"/>',
+    pulse: '<path d="M22 12h-4l-3 8-6-16-3 8H2"/>',
+    cal: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/>',
+    shield: '<path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/><path d="m9 12 2 2 4-4"/>',
+    file: '<path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/>',
+    logout: '<path d="M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4M10 17l5-5-5-5M15 12H3"/>',
+    print: '<path d="M6 9V3h12v6M6 18H4a1 1 0 0 1-1-1v-6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v6a1 1 0 0 1-1 1h-2"/><rect x="6" y="14" width="12" height="7" rx="1"/>',
+    down: '<path d="M12 3v12M7 10l5 5 5-5M4 21h16"/>',
+    target: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/>',
+    home: '<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
+    clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'
+  };
+  const ic = n => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n] || ''}</svg>`;
+  const initial = name => String(name || '?').replace(/^(ທ່ານ ນາງ|ທ່ານ|ນາງ|ທ້າວ)\s+/, '').trim().charAt(0) || '?';
+  const TICK_H = [55, 80, 45, 90, 70, 100, 60, 85, 50, 95, 65, 75, 88, 58];
+  const ticks = frac => `<div class="ticks" aria-hidden="true">${TICK_H.map((h, i) => `<i class="${i < Math.round(frac * TICK_H.length) ? 'on' : ''}" style="height:${h}%"></i>`).join('')}</div>`;
+  const stat = (label, icon, val, sub, frac) => `<div class="stat"><div class="top"><span>${label}</span><span class="ico">${ic(icon)}</span></div>
+    <div class="val">${val}</div><div class="sub">${sub}</div>${frac == null ? '' : ticks(frac)}</div>`;
 
   const S = code => A.B.staff.find(s => s.code === code);
   const nm = code => { const s = code && S(code); return s ? s.name : (code || '—'); };
@@ -66,11 +88,16 @@
     const B = A.B, top = $('#top'), nav = $('#nav'), bar = $('#demo-bar');
     top.hidden = nav.hidden = false;
     const r = B.round;
-    top.innerHTML = `<div class="wrap"><div class="who"><b>${esc(B.me.name)}</b><span>${esc(B.me.pos || '')}${r ? ' · ' + esc(r.name) + ' (' + ROUND_ST[r.status] + ')' : ''}</span></div>
-      <button data-act="logout">ອອກ</button></div>`;
-    const cur = (location.hash.slice(1) || 'home').split('/')[0];
-    const tabs = [['home', '📋', 'ວຽກຂອງຂ້ອຍ'], ['res', '📊', 'ຜົນ']].concat(isHR() ? [['hr', '⚙️', 'HR']] : []);
-    nav.innerHTML = tabs.map(([h, ic, t]) => `<a href="#${h}" class="${cur === h || (h === 'home' && ['kpi', 'form', 'pres'].includes(cur)) ? 'on' : ''}"><span class="ic">${ic}</span>${t}</a>`).join('');
+    top.innerHTML = `<div class="bar-in"><a class="brand" href="#home"><span class="mark">${ic('target')}</span>ປະເມີນ KPI</a><span class="sp"></span>
+      ${r ? `<span class="chip teal rchip">${ic('cal')} ${esc(r.name)} · ${ROUND_ST[r.status]}</span>` : ''}
+      <div class="who"><div class="nm"><b>${esc(B.me.name)}</b><span>${esc(B.me.pos || '')}</span></div><div class="avatar" aria-hidden="true">${esc(initial(B.me.name))}</div></div>
+      <button class="icon-btn" data-act="logout" aria-label="ອອກຈາກລະບົບ" title="ອອກຈາກລະບົບ">${ic('logout')}</button></div>`;
+    const [cur, sub] = (location.hash.slice(1) || 'home').split('/');
+    const tabs = [['home', 'list', 'ວຽກຂອງຂ້ອຍ'], ['res', 'chart', 'ຜົນປະເມີນ']].concat(isHR() ? [['hr', 'gear', 'HR']] : []);
+    const hrSub = { who: 'progress', import: 'staff', peer: 'peers' }[sub] || sub || 'progress';
+    nav.innerHTML = `<a class="brand side-only" href="#home"><span class="mark">${ic('target')}</span>ປະເມີນ KPI</a><div class="sec side-only">ເມນູຫຼັກ</div>` +
+      tabs.map(([h, i, t]) => `<a href="#${h}" class="${cur === h || (h === 'home' && ['kpi', 'form', 'pres'].includes(cur)) ? 'on' : ''}" ${cur === h ? 'aria-current="page"' : ''}>${ic(i)}<span>${t}</span></a>` +
+        (h === 'hr' ? HR_TABS.map(([k, tt]) => `<a href="#hr/${k}" class="sub side-only ${cur === 'hr' && hrSub === k ? 'on' : ''}">${tt}</a>`).join('') : '')).join('');
     bar.hidden = A.mode !== 'demo';
     if (A.mode === 'demo') {
       const opts = A.store.load().staff.map(s => `<option value="${esc(s.code)}" ${s.code === B.me.code ? 'selected' : ''}>${esc(s.name)} — ${esc(s.pos)}</option>`).join('');
@@ -138,15 +165,16 @@
     let h = `<h1>ສະບາຍດີ ${esc(B.me.name)}</h1><p class="muted">${esc(r.name)} · ${ROUND_ST[r.status]}</p>`;
     if (r.id !== (B.rounds.find(x => x.status === 'setup' || x.status === 'eval') || {}).id && A.roundSel)
       h += `<div class="alert info">ກຳລັງເບິ່ງຮອບເກົ່າ <button class="link" data-act="roundSel" data-id="">ກັບໄປຮອບປັດຈຸບັນ</button></div>`;
-    if (total) {
-      const n = total - pend.length;
-      h += `<div class="card flat"><div class="row between"><b>ວຽກທີ່ເຮັດແລ້ວ ${n} / ${total}</b><span class="muted">${Math.round(n / total * 100)}%</span></div>
-        <div class="bar" style="margin-top:6px"><i style="width:${n / total * 100}%"></i></div></div>`;
-    }
-    if (pres.length) h += `<a class="card duty" href="#pres"><div class="badge">KPI</div><div class="grow"><div class="t">ອະນຸມັດ KPI ສຸດທ້າຍ</div>
-      <div class="muted">${pres.length} ຄົນ ລໍຖ້າປະທານອະນຸມັດ</div></div><span class="btn sm pri">ເປີດ</span></a>`;
+    const own0 = kpiOf(B.me.code), n = total - pend.length;
+    h += `<div class="stats">
+      ${stat('ວຽກທີ່ເຮັດແລ້ວ', 'shield', `${n}<small> / ${total}</small>`, total ? Math.round(n / total * 100) + '% ຂອງວຽກທັງໝົດ' : 'ຍັງບໍ່ມີວຽກ', total ? n / total : 0)}
+      ${stat('ວຽກຄ້າງ', 'clock', pend.length + pres.length, pend.filter(d => dutyInfo(d).blocked).length ? 'ບາງລາຍການ ລໍຖ້າ KPI ອະນຸມັດ' : 'ລາຍການທີ່ຕ້ອງເຮັດ')}
+      ${stat('KPI ຂອງຂ້ອຍ', 'file', own0 ? (KPI_ST[own0.status] || KPI_ST.none)[0] : '—', own0 ? own0.items.length + ' ຕົວຊີ້ວັດ' : 'ຫົວໜ້າຍັງບໍ່ໄດ້ສົ່ງ')}
+      ${stat('ຮອບປະເມີນ', 'cal', esc(r.name), ROUND_ST[r.status])}</div>`;
     const order = d => (dutyInfo(d).blocked ? 1 : 0);
-    h += pend.slice().sort((a, b) => order(a) - order(b)).map(dutyCard).join('');
+    h += `<div class="duties">` + (pres.length ? `<a class="card duty" href="#pres"><div class="badge">KPI</div><div class="grow"><div class="t">ອະນຸມັດ KPI ສຸດທ້າຍ</div>
+      <div class="muted">${pres.length} ຄົນ ລໍຖ້າປະທານອະນຸມັດ</div></div><span class="btn sm pri">ເປີດ</span></a>` : '') +
+      pend.slice().sort((a, b) => order(a) - order(b)).map(dutyCard).join('') + `</div>`;
     if (!pend.length && !pres.length) {
       const msg = { setup: 'ຕອນນີ້ເປັນໄລຍະຕັ້ງ KPI. ເມື່ອຫົວໜ້າສົ່ງ KPI ມາ ຈະມີວຽກສະແດງຢູ່ນີ້.', eval: 'ທ່ານປະເມີນຄົບທຸກຟອມແລ້ວ. ຂອບໃຈ!',
         closed: 'ຮອບນີ້ປິດແລ້ວ. ລໍຖ້າ HR ປະກາດຜົນ.', published: 'ຜົນປະເມີນປະກາດແລ້ວ — ເບິ່ງໃນແຖບ "ຜົນ".' }[r.status];
@@ -155,7 +183,7 @@
     const own = kpiOf(B.me.code);
     if (own) h += `<a class="card duty" href="#kpi/${esc(B.me.code)}"><div class="badge">KPI</div><div class="grow"><div class="t">KPI ຂອງຂ້ອຍ</div>
       <div class="muted">${own.items.length} ຕົວຊີ້ວັດ</div></div>${kchip(own.status)}</a>`;
-    if (B.results.some(x => x.emp === B.me.code) && !isHR()) h += `<a class="card duty" href="#res/${esc(B.me.code)}"><div class="badge">📊</div><div class="grow"><div class="t">ຜົນປະເມີນຂອງຂ້ອຍ</div></div><span class="btn sm pri">ເບິ່ງ</span></a>`;
+    if (B.results.some(x => x.emp === B.me.code) && !isHR()) h += `<a class="card duty" href="#res/${esc(B.me.code)}"><div class="badge">${ic('chart')}</div><div class="grow"><div class="t">ຜົນປະເມີນຂອງຂ້ອຍ</div></div><span class="btn sm pri">ເບິ່ງ</span></a>`;
     if (done.length) h += `<details><summary>ເຮັດແລ້ວ (${done.length})</summary>${done.map(dutyCard).join('')}</details>`;
     return h;
   }
@@ -349,12 +377,12 @@
     return `<a class="back" href="${back}">← ກັບຄືນ</a><h1>${esc(r.name)}</h1><p class="muted">${esc(r.dept)} · ກຸ່ມ ${esc(G(r.group).name)} · ${esc(A.B.round.name)}</p>
       <div class="card"><div class="row">${gradeBox(r)}<div class="grow"><div class="big">${r.total == null ? '—' : f1d(r.total) + '%'}</div>
       <div>${r.grade ? 'ລະດັບ ' + r.grade + ' — ' + esc(gradeText(r.grade)) : 'ຍັງບໍ່ຄົບ: ຫົວໜ້າຍັງບໍ່ໄດ້ສົ່ງຟອມ ① ຫຼື KPI ຍັງບໍ່ອະນຸມັດ'}</div></div></div></div>
-      <div class="card">${resBody(r)}</div><a class="btn block no-print" href="#print/${esc(emp)}">🖨 ພິມຟອມ (A4)</a>`;
+      <div class="card">${resBody(r)}</div><a class="btn block no-print" href="#print/${esc(emp)}">${ic('print')} ພິມຟອມ (A4)</a>`;
   }
   function vPrint(emp) {
     const r = A.B.results.find(x => x.emp === emp), e = S(emp);
     if (!r || !e) return notFound();
-    return `<div class="no-print row" style="margin-bottom:12px"><a class="back grow" href="#res/${esc(emp)}">← ກັບຄືນ</a><button class="btn pri" data-act="print">🖨 ພິມ</button></div>
+    return `<div class="no-print row" style="margin-bottom:12px"><a class="back grow" href="#res/${esc(emp)}">← ກັບຄືນ</a><button class="btn pri" data-act="print">${ic('print')} ພິມ</button></div>
       <div class="card"><div style="text-align:center"><b>${esc(A.B.config.orgName || '')}</b><h2 style="margin-top:6px">ແບບຟອມປະເມີນຜົນການປະຕິບັດວຽກ (KPI)</h2>
       <p>${esc(A.B.round.name)}</p></div>
       <p>ຊື່ ແລະ ນາມສະກຸນ: <b>${esc(e.name)}</b> &nbsp; ລະຫັດ: ${esc(e.code)}<br>ຕຳແໜ່ງ: ${esc(e.pos)} &nbsp; ພະແນກ: ${esc(e.dept)} &nbsp; ກຸ່ມ: ${esc(G(e.group).name)}</p>
@@ -403,11 +431,13 @@
     if (!H) return `<div class="card"><p>ຍັງບໍ່ມີຮອບປະເມີນ — <a href="#hr/round">ສ້າງຮອບ</a></p></div>`;
     const P = H.progress, N = P.length, cnt = f => P.filter(f).length;
     const full = p => p.kpi === 'ok' && p.f1 && p.f2 && p.f3.done >= p.f3.of && (!p.f4 || p.f4.done >= p.f4.of);
-    let h = `<div class="card"><div class="row between"><b>${esc(A.B.round.name)}</b>${chip(ROUND_ST[A.B.round.status])}</div>
-      <div class="scroll"><table class="tbl" style="margin-top:8px"><tr><td>KPI ອະນຸມັດແລ້ວ</td><td class="n">${cnt(p => p.kpi === 'ok')} / ${N}</td></tr>
-      <tr><td>ຟອມ ① ສົ່ງແລ້ວ</td><td class="n">${cnt(p => p.f1)} / ${N}</td></tr><tr><td>ຟອມ ② ສົ່ງແລ້ວ</td><td class="n">${cnt(p => p.f2)} / ${N}</td></tr>
-      <tr><td>ຟອມ ③ ຄົບ</td><td class="n">${cnt(p => p.f3.of && p.f3.done >= p.f3.of)} / ${cnt(p => p.f3.of)}${cnt(p => !p.f3.of) ? ` <span class="chip warn">${cnt(p => !p.f3.of)} ຄົນບໍ່ມີເພື່ອນ</span>` : ''}</td></tr>
-      <tr><td>ຟອມ ④ ຄົບ</td><td class="n">${cnt(p => p.f4 && p.f4.done >= p.f4.of)} / ${cnt(p => p.f4)}</td></tr></table></div></div>`;
+    const kOk = cnt(p => p.kpi === 'ok'), f12 = cnt(p => p.f1 && p.f2), f3n = cnt(p => p.f3.of), f3d = cnt(p => p.f3.of && p.f3.done >= p.f3.of),
+      f4n = cnt(p => p.f4), f4d = cnt(p => p.f4 && p.f4.done >= p.f4.of), noPeer = cnt(p => !p.f3.of);
+    let h = `<div class="card-h"><h2>${esc(A.B.round.name)}</h2>${chip(ROUND_ST[A.B.round.status], 'teal')}</div><div class="stats">
+      ${stat('KPI ອະນຸມັດແລ້ວ', 'file', `${kOk}<small> / ${N}</small>`, N - kOk ? `ຍັງເຫຼືອ ${N - kOk} ຄົນ` : 'ຄົບທຸກຄົນ', N ? kOk / N : 0)}
+      ${stat('ຫົວໜ້າປະເມີນ ①②', 'shield', `${f12}<small> / ${N}</small>`, 'ສົ່ງຄົບທັງ 2 ຟອມ', N ? f12 / N : 0)}
+      ${stat('ເພື່ອນປະເມີນ ③', 'users', `${f3d}<small> / ${f3n}</small>`, noPeer ? `${noPeer} ຄົນ ຍັງບໍ່ມີເພື່ອນ` : 'ຄົນທີ່ເພື່ອນສົ່ງຄົບ', f3n ? f3d / f3n : 0)}
+      ${stat('ລູກນ້ອງປະເມີນ ④', 'pulse', `${f4d}<small> / ${f4n}</small>`, 'ຫົວໜ້າທີ່ລູກນ້ອງສົ່ງຄົບ', f4n ? f4d / f4n : 0)}</div>`;
     const noSup = P.filter(p => p.noSup);
     if (noSup.length) h += `<div class="alert bad">ບໍ່ມີຜູ້ປະເມີນ (ບໍ່ໄດ້ກຳນົດຫົວໜ້າ): ${noSup.map(p => esc(nm(p.emp))).join(', ')}</div>`;
     const owe = owing(), oweK = Object.keys(owe).sort((a, b) => owe[b].length - owe[a].length);
@@ -443,7 +473,7 @@
     if (A.pins) {
       h += `<div class="card"><div class="alert bad">ພິມ ຫຼື ບັນທຶກ PIN ເຫຼົ່ານີ້ໄວ້ດຽວນີ້ — ຈະບໍ່ສະແດງອີກ</div><div class="scroll"><table class="tbl"><thead><tr><th>ລະຫັດ</th><th>ຊື່</th><th>PIN</th></tr></thead><tbody>
         ${A.pins.map(p => `<tr><td>${esc(p.code)}</td><td>${esc(nm(p.code))}</td><td><b>${p.pin}</b></td></tr>`).join('')}</tbody></table></div>
-        <div class="btns"><button class="btn" data-act="print">🖨 ພິມ</button><button class="btn" data-act="pinsCsv">ດາວໂຫຼດ CSV</button><button class="btn" data-act="pinsDone">ປິດ</button></div></div>`;
+        <div class="btns"><button class="btn" data-act="print">${ic('print')} ພິມ</button><button class="btn" data-act="pinsCsv">ດາວໂຫຼດ CSV</button><button class="btn" data-act="pinsDone">ປິດ</button></div></div>`;
     } else if (noPin.length) h += `<div class="alert">ມີ ${noPin.length} ຄົນ ຍັງບໍ່ມີ PIN (ເຂົ້າລະບົບບໍ່ໄດ້). <button class="link" data-act="pinsGen">ສ້າງ PIN ໃຫ້ທັງໝົດ</button></div>`;
     h += `<input class="in" id="hr-q" placeholder="ຄົ້ນຫາ ຊື່ / ລະຫັດ / ພະແນກ" value="${esc(A.hrQ)}" style="margin:12px 0">
       <div class="card">${list.map(s => `<a class="list-row" href="#hr/staff/${esc(s.code)}" style="color:inherit;text-decoration:none">
@@ -543,10 +573,12 @@
     const st = A.B.round ? A.B.round.status : '';
     let h = st === 'setup' || st === 'eval' ? `<div class="alert info">ຜົນນີ້ ຄິດໄລ່ສົດ ຈາກຟອມທີ່ສົ່ງແລ້ວ — ຍັງບໍ່ແມ່ນຜົນສຸດທ້າຍ. ພະນັກງານຍັງບໍ່ເຫັນ.</div>` :
       st === 'closed' ? `<div class="alert">ປິດຮອບແລ້ວ ແຕ່ຍັງບໍ່ໄດ້ປະກາດ — ພະນັກງານຍັງບໍ່ເຫັນຜົນ. <a href="#hr/round">ປະກາດຜົນ</a></div>` : '';
-    h += `<div class="card"><div class="gdist">${dist.map(([g, n]) => `<div><div class="grade ${g}" style="width:36px;height:36px;font-size:18px;border-radius:8px">${g}</div><div><b>${n}</b></div></div>`).join('')}</div>
-      <p class="muted small" style="margin-top:6px">ບໍ່ຄົບ: ${R.filter(r => !r.grade).length} ຄົນ</p></div>`;
+    const max = Math.max(1, ...dist.map(d => d[1])), top = dist.reduce((a, b) => (b[1] > a[1] ? b : a))[0];
+    h += `<div class="card"><div class="card-h">${ic('chart')}<h3>ຈຳນວນຄົນ ຕາມລະດັບ</h3><span class="muted small">ບໍ່ຄົບ: ${R.filter(r => !r.grade).length} ຄົນ</span></div>
+      <div class="vbars" role="img" aria-label="${dist.map(([g, n]) => g + ' ' + n + ' ຄົນ').join(', ')}">${dist.map(([g, n]) => `<div class="col"><div class="track">${n ? `<div class="fill${g === top ? ' hi' : ''}" style="height:${n / max * 100}%">${n} ຄົນ</div>` : ''}</div>
+        <span class="lbl">ລະດັບ ${g}</span></div>`).join('')}</div></div>`;
     h += deptFilter().replace(/<label class="check">.*<\/label>/, '');
-    h += `<button class="btn block" data-act="resCsv">⬇ ດາວໂຫຼດ Excel (CSV)</button><div class="card" style="margin-top:12px">${R.map(resRow).join('') || '<p class="muted">ບໍ່ມີ</p>'}</div>`;
+    h += `<button class="btn block" data-act="resCsv">${ic('down')} ດາວໂຫຼດ Excel (CSV)</button><div class="card" style="margin-top:12px">${R.map(resRow).join('') || '<p class="muted">ບໍ່ມີ</p>'}</div>`;
     return h;
   }
   function hrRound() {
@@ -591,6 +623,15 @@
   function notFound() { return `<a class="back" href="#home">← ກັບຄືນ</a><div class="card"><p>ບໍ່ພົບໜ້ານີ້ ຫຼື ທ່ານບໍ່ມີສິດເບິ່ງ</p></div>`; }
 
   // ---------- render ----------
+  const CRUMB = { home: 'ວຽກຂອງຂ້ອຍ', kpi: 'KPI ດ້ານ I', pres: 'ອະນຸມັດ KPI', form: 'ຟອມປະເມີນ', res: 'ຜົນປະເມີນ', print: 'ພິມຟອມ', hr: 'HR' };
+  function crumbs(r, p) {
+    const parts = [`<a href="#home">${ic('home')}</a>`];
+    if (r === 'hr') {
+      const k = { who: 'progress', import: 'staff', peer: 'peers' }[p[0]] || p[0] || 'progress';
+      parts.push(`<a href="#hr">HR</a>`, `<b>${(HR_TABS.find(t => t[0] === k) || [0, ''])[1]}</b>`);
+    } else parts.push(`<b>${CRUMB[r] || CRUMB.home}</b>`);
+    return `<nav class="crumbs no-print" aria-label="breadcrumb">${parts.join('<span class="sep">›</span>')}</nav>`;
+  }
   let lastRoute = '';
   function render() {
     A.after = null;
@@ -603,7 +644,7 @@
       const R = { home: vHome, kpi: vKpi, pres: vPres, form: vForm, res: p.length ? vRes : vResList, print: vPrint, hr: vHr };
       if (r !== 'kpi') A.kedit = null;
       if (r !== 'hr' || p[0] !== 'peer') A.peerSel = null;
-      html = (R[r] || vHome)(...p);
+      html = crumbs(r, p) + (R[r] || vHome)(...p);
     }
     $('#view').innerHTML = `<div class="wrap">${html}</div>`;
     if (location.hash !== lastRoute) { window.scrollTo(0, 0); lastRoute = location.hash; }
