@@ -7,8 +7,8 @@ fs.mkdirSync(path.join(__dirname, 'dist'), { recursive: true });
 const gs = join(['scoring.js', 'server.js', 'store-gas.js', 'gas-main.js']);
 fs.writeFileSync(path.join(__dirname, 'dist', 'Code.gs'), gs, 'utf8');
 
-const font = fs.readFileSync(path.join(__dirname, 'src', 'fonts', 'PhetsarathOT.ttf')).toString('base64');
-const css = `@font-face{font-family:"Phetsarath OT";font-weight:400 700;font-display:block;src:url(data:font/ttf;base64,${font}) format("truetype")}\n` + src('styles.css');
+const font = fs.readFileSync(path.join(__dirname, 'src', 'fonts', 'NotoSansLao-subset.woff2')).toString('base64');  // variable wght 400–800, SIL OFL
+const css = `@font-face{font-family:"Noto Sans Lao";font-weight:400 800;font-display:block;src:url(data:font/woff2;base64,${font}) format("woff2")}\n` + src('styles.css');
 const b64 = f => fs.readFileSync(path.join(__dirname, 'src', 'assets', f)).toString('base64');
 const lh = `const LETTERHEAD = { top: 'data:image/jpeg;base64,${b64('lh-top.jpg')}', bot: 'data:image/jpeg;base64,${b64('lh-bot.jpg')}' };\n`;
 const js = "'use strict';\n" + lh + join(['scoring.js', 'seed.js', 'server.js', 'store-demo.js', 'app.js']);
