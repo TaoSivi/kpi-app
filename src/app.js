@@ -18,16 +18,16 @@
   };
   const KPI_STEPS = [['draft', 'ຫົວໜ້າຕັ້ງ'], ['hr', 'HR ກວດ'], ['ack', 'ພະນັກງານຮັບຮູ້'], ['appr', 'ຜູ້ອະນຸມັດ'], ['pres', 'ປະທານ'], ['ok', 'ອະນຸມັດແລ້ວ']];
   const ROUND_ST = { setup: 'ໄລຍະຕັ້ງ KPI', eval: 'ໄລຍະປະເມີນ', closed: 'ປິດຮອບແລ້ວ', published: 'ປະກາດຜົນແລ້ວ' };
+  const FORM_NAME = { 1: 'ປະເມີນລວມ', 2: 'ປະເມີນດ້ານ II', 3: 'ເພື່ອນປະເມີນ', 4: 'ລູກນ້ອງປະເມີນຫົວໜ້າ' };
   const RATE = ['ອ່ອນ', 'ຄວນປັບປຸງ', 'ພໍໃຊ້', 'ດີ', 'ດີເລີດ'];
   const FACE = ['M8 16.6c1.3-1.7 6.7-1.7 8 0', 'M8.5 16.2c1.1-1 5.9-1 7 0', 'M9 16h6', 'M8.5 14.8c1.1 1 5.9 1 7 0', 'M7.8 14c1.3 2.4 6.6 2.4 8.4 0'].map(m =>
     `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5"/><circle class="eye" cx="9" cy="10" r="1.2"/><circle class="eye" cx="15" cy="10" r="1.2"/><path d="${m}"/></svg>`);
-  const BADGE = { 1: '①', 2: '②', 3: '③', 4: '④' };
   const ROLE_T = { ADMIN: 'Admin', HR: 'HR', PRESIDENT: 'ປະທານ' };
   const PERM_T = {
     staff: ['ຈັດການພະນັກງານ ແລະ PIN', 'ເພີ່ມ/ແກ້ລາຍຊື່, ນຳເຂົ້າຈາກ Excel, ຕັ້ງ PIN'],
     roles: ['ກຳນົດສິດ ແລະ ບົດບາດ', 'ສ້າງບົດບາດ, ເລືອກສິດ, ມອບບົດບາດໃຫ້ພະນັກງານ'],
     round: ['ຈັດການຮອບປະເມີນ', 'ສ້າງຮອບ, ເປີດປະເມີນ, ປິດຮອບ, ປະກາດຜົນ'],
-    peers: ['ກຳນົດເພື່ອນຮ່ວມງານ', 'ເລືອກຄົນທີ່ຈະປະເມີນຟອມ ③'],
+    peers: ['ກຳນົດເພື່ອນຮ່ວມງານ', 'ເລືອກຄົນທີ່ຈະມາປະເມີນເພື່ອນຮ່ວມງານ'],
     config: ['ຕັ້ງຄ່ານ້ຳໜັກ ແລະ ຄຳຖາມ', 'ແກ້ນ້ຳໜັກ 4 ດ້ານ ແລະ ຄຳຖາມຂອງຟອມ'],
     kpiReview: ['ກວດ KPI (ຂັ້ນ HR)', 'ຜ່ານ ຫຼື ສົ່ງກັບ KPI, ປົດລັອກ KPI'],
     kpiFinal: ['ອະນຸມັດ KPI ສຸດທ້າຍ', 'ຂັ້ນປະທານ — ອະນຸມັດທັງໝົດໄດ້ດ້ວຍປຸ່ມດຽວ'],
@@ -189,10 +189,10 @@
       case 'kpiAck': return { b: 'KPI', t: 'ກວດ ແລະ ຮັບຮູ້ KPI ຂອງທ່ານ', sub: 'ຫົວໜ້າສົ່ງ KPI ມາໃຫ້ທ່ານແລ້ວ', href: '#kpi/' + d.emp };
       case 'kpiHr': return { b: 'KPI', t: 'HR ກວດ KPI', sub: who, href: '#kpi/' + d.emp };
       case 'kpiAppr': return { b: 'KPI', t: 'ອະນຸມັດ KPI', sub: who, href: '#kpi/' + d.emp };
-      case 'f1': return { b: BADGE[1], t: 'ປະເມີນລວມ (ຟອມ ①)', sub: who, href: '#form/1/' + d.emp, blocked: d.blocked };
-      case 'f2': return { b: BADGE[2], t: f2Title(g) + ' (ຟອມ ②)', sub: who, href: '#form/2/' + d.emp };
-      case 'f3': return { b: BADGE[3], t: 'ປະເມີນເພື່ອນຮ່ວມງານ (ຟອມ ③)', sub: who, href: '#form/3/' + d.emp };
-      case 'f4': return { b: BADGE[4], t: 'ປະເມີນຫົວໜ້າຂອງທ່ານ (ຟອມ ④)', sub: who, href: '#form/4/' + d.emp };
+      case 'f1': return { t: 'ປະເມີນລວມ', sub: who, href: '#form/1/' + d.emp, blocked: d.blocked };
+      case 'f2': return { t: f2Title(g), sub: who, href: '#form/2/' + d.emp };
+      case 'f3': return { t: 'ປະເມີນເພື່ອນຮ່ວມງານ', sub: who, href: '#form/3/' + d.emp };
+      case 'f4': return { t: 'ປະເມີນຫົວໜ້າຂອງທ່ານ', sub: who, href: '#form/4/' + d.emp };
     }
     return { b: '?', t: d.kind, sub: who, href: '#home' };
   }
@@ -204,7 +204,7 @@
     return `<a class="srow${d.done ? ' done' : ''}" href="${x.href}"><span class="sico">${d.done ? ic('check') : icn}</span><div class="grow"><div class="t">${x.t}</div>
       <div class="muted small">${x.sub}</div></div>${d.done ? chip('ເຮັດແລ້ວ', 'ok') : (x.chip || `<span class="pill-btn">ເຮັດເລີຍ ${ic('go')}</span>`)}</a>`;
   }
-  const STAGES = [['ຕັ້ງ ແລະ ອະນຸມັດ KPI', ['kpiSet', 'kpiAck', 'kpiHr', 'kpiAppr', 'kpiPres']], ['ປະເມີນລູກນ້ອງ ①②', ['f1', 'f2']], ['ປະເມີນເພື່ອນ/ຫົວໜ້າ ③④', ['f3', 'f4']]];
+  const STAGES = [['ຕັ້ງ ແລະ ອະນຸມັດ KPI', ['kpiSet', 'kpiAck', 'kpiHr', 'kpiAppr', 'kpiPres']], ['ປະເມີນລູກນ້ອງ', ['f1', 'f2']], ['ປະເມີນເພື່ອນ / ຫົວໜ້າ', ['f3', 'f4']]];
   const pctOf = (a, b) => (b ? Math.round(a / b * 100) : 0);
   function vHome() {
     const B = A.B, r = B.round;
@@ -329,9 +329,9 @@
   // ---------- forms ----------
   function formSpec(n, e) {
     const g = G(e.group), Q = A.B.config.questions, k = kpiOf(e.code);
-    if (n === 1) return { title: 'ປະເມີນລວມ (ຟອມ ①)', groups: [['iii', g.iii]].concat(g.w[3] ? [['iv', g.iv]] : []), items: k ? k.items : [], texts: ['str', 'imp', 'cmt'] };
-    if (n === 2) return { title: f2Title(g) + ' (ຟອມ ②)', groups: [['q', Q[g.q2]], ['s', Q.sac]], texts: ['note'] };
-    return { title: n === 3 ? 'ປະເມີນເພື່ອນຮ່ວມງານ (ຟອມ ③)' : 'ປະເມີນຫົວໜ້າ (ຟອມ ④)', groups: [['q', Q[n === 3 ? 'peer' : 'sub']]], texts: ['note'] };
+    if (n === 1) return { title: 'ປະເມີນລວມ', groups: [['iii', g.iii]].concat(g.w[3] ? [['iv', g.iv]] : []), items: k ? k.items : [], texts: ['str', 'imp', 'cmt'] };
+    if (n === 2) return { title: f2Title(g), groups: [['q', Q[g.q2]], ['s', Q.sac]], texts: ['note'] };
+    return { title: n === 3 ? 'ປະເມີນເພື່ອນຮ່ວມງານ' : 'ປະເມີນຫົວໜ້າ', groups: [['q', Q[n === 3 ? 'peer' : 'sub']]], texts: ['note'] };
   }
   const TEXT_T = { str: 'ຈຸດແຂງ', imp: 'ຈຸດທີ່ຄວນປັບປຸງ', cmt: 'ຄຳເຫັນໂດຍລວມ', note: 'ຄຳເຫັນເພີ່ມເຕີມ (ບໍ່ບັງຄັບ)' };
   const draftKey = (n, emp) => `kpi_draft_${A.B.round ? A.B.round.id : ''}_${n}_${emp}`;
@@ -346,13 +346,13 @@
     st = st || {};
     const kind = { 1: 'ປະເມີນລວມ', 2: f2Title(g), 3: 'ປະເມີນເພື່ອນຮ່ວມງານ', 4: 'ປະເມີນຫົວໜ້າ' }[n];
     let h = `<a class="back" href="#home">${ic('back')} ກັບຄືນ</a><div class="card fhead"><div class="fh-top"><div class="avatar lg" aria-hidden="true">${esc(initial(e.name))}</div>
-      <div class="grow"><div class="fh-kind"><span class="chip fkind">${BADGE[n]} ຟອມ ${n}</span><span class="muted">${esc(kind)}</span></div>
+      <div class="grow"><div class="fh-kind"><span class="chip fkind">${esc(kind)}</span></div>
       <h1>${esc(e.name)}</h1><div class="muted">${esc(e.pos)} · ${esc(e.dept)} · ກຸ່ມ ${esc(g.name)}</div></div>${done ? chip('ສົ່ງແລ້ວ ' + fdate(prev.at), 'ok') : ''}</div>`;
     if (done) h += `<div class="alert ok" style="margin:14px 0 0">ທ່ານສົ່ງຟອມນີ້ແລ້ວ. ຖ້າຕ້ອງແກ້ ໃຫ້ຕິດຕໍ່ HR.</div>`;
     else {
       h += `<div class="scale" aria-label="ຄວາມໝາຍຂອງຄະແນນ">${RATE.map((t, i) => `<span><i style="background:var(--g${i + 1})"></i>${i + 1} ${t}</span>`).join('')}</div>`;
       if (n >= 3) h += `<div class="fnote">${ic('shield')} ຊື່ຂອງທ່ານ ຈະບໍ່ສະແດງໃຫ້ຜູ້ຖືກປະເມີນ ຫຼື ຫົວໜ້າເຫັນ</div>`;
-      if (n === 1) h += `<div class="ftiles-h muted small">ຄະແນນທີ່ທ່ານໃຫ້ຕອນນີ້ · ດ້ານ II ມາຈາກຟອມ ②③④</div><div id="live" class="ftiles"></div>`;
+      if (n === 1) h += `<div class="ftiles-h muted small">ຄະແນນທີ່ທ່ານໃຫ້ຕອນນີ້ · ດ້ານ II ມາຈາກຄະແນນທີ່ຄົນອື່ນໃຫ້</div><div id="live" class="ftiles"></div>`;
     }
     h += `</div><div id="fm" data-n="${n}" data-emp="${esc(emp)}">`;
     const sec = (key, num, title, sub, weight, rows) => `<section class="card fsec" data-sec="${key}"><div class="fsec-h"><span class="snum">${num}</span>
@@ -456,7 +456,7 @@
     if (!r) return `<a class="back" href="${back}">${ic('back')} ກັບຄືນ</a><div class="card"><p>ຍັງບໍ່ມີຜົນ</p></div>`;
     return `<a class="back" href="${back}">${ic('back')} ກັບຄືນ</a><h1>${esc(r.name)}</h1><p class="muted">${esc(r.dept)} · ກຸ່ມ ${esc(G(r.group).name)} · ${esc(A.B.round.name)}</p>
       <div class="card"><div class="row">${gradeBox(r)}<div class="grow"><div class="big">${r.total == null ? '—' : f1d(r.total) + '%'}</div>
-      <div>${r.grade ? 'ລະດັບ ' + r.grade + ' — ' + esc(gradeText(r.grade)) : 'ຍັງບໍ່ຄົບ: ຫົວໜ້າຍັງບໍ່ໄດ້ສົ່ງຟອມ ① ຫຼື KPI ຍັງບໍ່ອະນຸມັດ'}</div></div></div></div>
+      <div>${r.grade ? 'ລະດັບ ' + r.grade + ' — ' + esc(gradeText(r.grade)) : 'ຍັງບໍ່ຄົບ: ຫົວໜ້າຍັງບໍ່ໄດ້ສົ່ງຟອມປະເມີນລວມ ຫຼື KPI ຍັງບໍ່ອະນຸມັດ'}</div></div></div></div>
       <div class="card">${resBody(r)}</div><a class="btn block no-print" href="#print/${esc(emp)}">${ic('print')} ພິມຟອມ (A4)</a>`;
   }
   function vPrint(emp) {
@@ -505,10 +505,10 @@
       if (['none', 'draft'].includes(p.kpi)) add(e.sup, 'ຕັ້ງ KPI: ' + e.name);
       if (p.kpi === 'ack') add(e.code, 'ຮັບຮູ້ KPI ຂອງຕົນ');
       if (r.status !== 'eval') continue;
-      if (!p.f1 && p.kpi === 'ok') add(e.sup, '① ' + e.name);
-      if (!p.f2) add(e.sup, '② ' + e.name);
-      for (const pr of H.peers.filter(x => x.emp === e.code)) if (!has(3, e.code, pr.by)) add(pr.by, '③ ' + e.name);
-      if (p.f4) for (const s of A.B.staff.filter(x => x.sup === e.code && x.active !== false)) if (!has(4, e.code, s.code)) add(s.code, '④ ' + e.name);
+      if (!p.f1 && p.kpi === 'ok') add(e.sup, 'ປະເມີນລວມ: ' + e.name);
+      if (!p.f2) add(e.sup, 'ປະເມີນດ້ານ II: ' + e.name);
+      for (const pr of H.peers.filter(x => x.emp === e.code)) if (!has(3, e.code, pr.by)) add(pr.by, 'ປະເມີນເພື່ອນ: ' + e.name);
+      if (p.f4) for (const s of A.B.staff.filter(x => x.sup === e.code && x.active !== false)) if (!has(4, e.code, s.code)) add(s.code, 'ປະເມີນຫົວໜ້າ: ' + e.name);
     }
     return owe;
   }
@@ -521,9 +521,9 @@
       f4n = cnt(p => p.f4), f4d = cnt(p => p.f4 && p.f4.done >= p.f4.of), noPeer = cnt(p => !p.f3.of);
     let h = `<div class="card-h"><h2>${esc(A.B.round.name)}</h2>${chip(ROUND_ST[A.B.round.status], 'teal')}</div><div class="stats">
       ${stat('KPI ອະນຸມັດແລ້ວ', 'file', `${kOk}<small> / ${N}</small>`, N - kOk ? `ຍັງເຫຼືອ ${N - kOk} ຄົນ` : 'ຄົບທຸກຄົນ', N ? kOk / N : 0)}
-      ${stat('ຫົວໜ້າປະເມີນ ①②', 'shield', `${f12}<small> / ${N}</small>`, 'ສົ່ງຄົບທັງ 2 ຟອມ', N ? f12 / N : 0)}
-      ${stat('ເພື່ອນປະເມີນ ③', 'users', `${f3d}<small> / ${f3n}</small>`, noPeer ? `${noPeer} ຄົນ ຍັງບໍ່ມີເພື່ອນ` : 'ຄົນທີ່ເພື່ອນສົ່ງຄົບ', f3n ? f3d / f3n : 0)}
-      ${stat('ລູກນ້ອງປະເມີນ ④', 'pulse', `${f4d}<small> / ${f4n}</small>`, 'ຫົວໜ້າທີ່ລູກນ້ອງສົ່ງຄົບ', f4n ? f4d / f4n : 0)}</div>`;
+      ${stat('ຫົວໜ້າປະເມີນລູກນ້ອງ', 'shield', `${f12}<small> / ${N}</small>`, 'ສົ່ງຄົບທັງ 2 ຟອມ', N ? f12 / N : 0)}
+      ${stat('ເພື່ອນປະເມີນ', 'users', `${f3d}<small> / ${f3n}</small>`, noPeer ? `${noPeer} ຄົນ ຍັງບໍ່ມີເພື່ອນ` : 'ຄົນທີ່ເພື່ອນສົ່ງຄົບ', f3n ? f3d / f3n : 0)}
+      ${stat('ລູກນ້ອງປະເມີນຫົວໜ້າ', 'pulse', `${f4d}<small> / ${f4n}</small>`, 'ຫົວໜ້າທີ່ລູກນ້ອງສົ່ງຄົບ', f4n ? f4d / f4n : 0)}</div>`;
     const noSup = P.filter(p => p.noSup);
     if (noSup.length) h += `<div class="alert bad">ບໍ່ມີຜູ້ປະເມີນ (ບໍ່ໄດ້ກຳນົດຫົວໜ້າ): ${noSup.map(p => esc(nm(p.emp))).join(', ')}</div>`;
     const owe = owing(), oweK = Object.keys(owe).sort((a, b) => owe[b].length - owe[a].length);
@@ -533,7 +533,7 @@
     const rows = P.filter(p => (!A.hrDept || S(p.emp).dept === A.hrDept) && (!A.hrTodo || !full(p)));
     const tick = b => (b ? '<span class="chip ok">✓</span>' : '<span class="chip grey">–</span>');
     const frac = x => (x ? `<span class="chip ${x.of && x.done >= x.of ? 'ok' : 'grey'}">${x.done}/${x.of}</span>` : '');
-    h += `<div class="card scroll"><table class="tbl"><thead><tr><th>ພະນັກງານ</th><th>KPI</th><th>①</th><th>②</th><th>③</th><th>④</th></tr></thead><tbody>
+    h += `<div class="card scroll"><table class="tbl"><thead><tr><th>ພະນັກງານ</th><th>KPI</th><th>ປະເມີນລວມ</th><th>ດ້ານ II</th><th>ເພື່ອນ</th><th>ລູກນ້ອງ</th></tr></thead><tbody>
       ${rows.map(p => `<tr data-go="#hr/who/${esc(p.emp)}" style="cursor:pointer"><td><b>${esc(nm(p.emp))}</b><div class="muted small">${esc(S(p.emp).dept)}</div></td>
         <td>${kchip(p.kpi)}</td><td>${tick(p.f1)}</td><td>${tick(p.f2)}</td><td>${frac(p.f3)}</td><td>${frac(p.f4)}</td></tr>`).join('')}</tbody></table>
       ${rows.length ? '' : '<p class="muted">ບໍ່ມີລາຍການ</p>'}</div>`;
@@ -547,7 +547,7 @@
     let h = `<a class="back" href="#hr/progress">${ic('back')} ຄວາມຄືບໜ້າ</a><h2>${esc(e.name)}</h2><p class="muted">${esc(e.pos)} · ຫົວໜ້າ: ${esc(nm(e.sup))} · ຜູ້ອະນຸມັດ KPI: ${esc(nm(A.B.approvers[emp]))}</p>
       <div class="card row between"><span>KPI: ${kchip(k ? k.status : 'none')}</span><a class="btn sm" href="#kpi/${esc(emp)}">ເປີດ KPI</a></div>`;
     h += `<div class="card"><h3>ຟອມທີ່ກ່ຽວຂ້ອງ</h3>${ans.length ? ans.map(a => `<div class="row" style="border-top:1px solid var(--line);padding:6px 0">
-      <span class="grow">${BADGE[a.form]} ໂດຍ ${esc(nm(a.by))} <span class="muted small">${fdate(a.at)}</span></span>
+      <span class="grow">${FORM_NAME[a.form]} · ໂດຍ ${esc(nm(a.by))} <span class="muted small">${fdate(a.at)}</span></span>
       ${a.status === 'sub' ? (A.B.round.status === 'eval' ? `<button class="btn sm" data-act="reopen" data-id="${esc(a.id)}">ເປີດຄືນໃຫ້ແກ້</button>` : chip('ສົ່ງແລ້ວ', 'ok')) : chip('ເປີດຄືນແລ້ວ', 'warn')}</div>`).join('') : '<p class="muted">ຍັງບໍ່ມີຟອມສົ່ງເຂົ້າມາ</p>'}</div>`;
     return h;
   }
@@ -583,7 +583,7 @@
       ${fld('pos', 'ຕຳແໜ່ງ')}${fld('dept', 'ພະແນກ')}${fld('div', 'ຝ່າຍ')}</div>
       <label class="f"><span>ກຸ່ມ KPI</span><select class="in" name="group"><option value="">— ບໍ່ຖືກປະເມີນ (ເຊັ່ນ ຜູ້ອຳນວຍການ, ປະທານ)</option>
         ${Object.entries(A.B.config.groups).map(([k, g]) => `<option value="${k}" ${s.group === k ? 'selected' : ''}>${esc(g.name)}</option>`).join('')}</select></label>
-      <label class="f"><span>ຫົວໜ້າສາຍງານ (ຜູ້ປະເມີນຟອມ ① ②)</span><select class="in" name="sup">${staffOpts(s.sup, s.code, '— ບໍ່ມີ')}</select></label>
+      <label class="f"><span>ຫົວໜ້າສາຍງານ (ຜູ້ໃຫ້ຄະແນນລູກນ້ອງ)</span><select class="in" name="sup">${staffOpts(s.sup, s.code, '— ບໍ່ມີ')}</select></label>
       <label class="f"><span>ຜູ້ອະນຸມັດ KPI (ວ່າງ = ຫົວໜ້າຂອງຫົວໜ້າ: ${esc(auto)})</span><select class="in" name="appr">${staffOpts(s.appr, s.code, '— ອັດຕະໂນມັດ')}</select></label>
       <div class="f"><span class="muted">ບົດບາດ ${can('roles') ? '' : '(ປ່ຽນໄດ້ສະເພາະຜູ້ມີສິດ "ກຳນົດສິດ")'}</span>${A.B.roles.map(r => `<label class="check"><input type="checkbox" name="role" value="${esc(r.code)}" ${s.roles.includes(r.code) ? 'checked' : ''} ${can('roles') ? '' : 'disabled'}> ${esc(r.name)}</label>`).join('')}
         <label class="check"><input type="checkbox" name="active" ${s.active !== false ? 'checked' : ''}> ໃຊ້ງານຢູ່</label></div>
@@ -670,7 +670,7 @@
   function hrRound() {
     const r = A.B.round, open = A.B.rounds.find(x => x.status === 'setup' || x.status === 'eval');
     const MOVES = {
-      setup: [['eval', 'ເປີດໃຫ້ປະເມີນ', 'pri', 'ທຸກຄົນຈະເລີ່ມກອກຟອມ ①–④ ໄດ້. KPI ທີ່ຍັງບໍ່ອະນຸມັດ ຍັງດຳເນີນຕໍ່ໄດ້.']],
+      setup: [['eval', 'ເປີດໃຫ້ປະເມີນ', 'pri', 'ທຸກຄົນຈະເລີ່ມກອກຟອມປະເມີນໄດ້. KPI ທີ່ຍັງບໍ່ອະນຸມັດ ຍັງດຳເນີນຕໍ່ໄດ້.']],
       eval: [['closed', 'ປິດຮອບ ແລະ ຄິດໄລ່ຜົນ', 'pri', 'ຟອມທີ່ຍັງບໍ່ສົ່ງ ຈະບໍ່ຖືກນັບ.'], ['setup', 'ກັບໄປໄລຍະຕັ້ງ KPI', '', '']],
       closed: [['published', 'ປະກາດຜົນ ໃຫ້ພະນັກງານເຫັນ', 'ok', 'ພະນັກງານ ແລະ ຫົວໜ້າ ຈະເຫັນຜົນຂອງຕົນ.'], ['eval', 'ເປີດປະເມີນຄືນ', '', '']],
       published: [['closed', 'ຖອນການປະກາດ', '', '']]
@@ -688,7 +688,7 @@
   function hrConfig() {
     const C = A.B.config, locked = A.B.rounds.some(r => r.status === 'eval');
     const lines = a => esc((a || []).join('\n'));
-    const QT = { lead: 'ຟອມ ② ກຸ່ມຫົວໜ້າ', staff: 'ຟອມ ② ກຸ່ມວິຊາການ/ບໍລິການ', audit: 'ຟອມ ② ກວດສອບພາຍໃນ', sac: 'ຟອມ ② ຄວາມເສຍສະຫຼະ', peer: 'ຟອມ ③ ເພື່ອນຮ່ວມງານ', sub: 'ຟອມ ④ ລູກນ້ອງປະເມີນຫົວໜ້າ' };
+    const QT = { lead: 'ຫົວໜ້າປະເມີນ — ກຸ່ມຫົວໜ້າ', staff: 'ຫົວໜ້າປະເມີນ — ກຸ່ມວິຊາການ/ບໍລິການ', audit: 'ຫົວໜ້າປະເມີນ — ກວດສອບພາຍໃນ', sac: 'ຫົວໜ້າປະເມີນ — ຄວາມເສຍສະຫຼະ', peer: 'ເພື່ອນຮ່ວມງານປະເມີນ', sub: 'ລູກນ້ອງປະເມີນຫົວໜ້າ' };
     const num = (k, i, v) => `<input class="in" type="number" min="0" max="100" data-c="${k}" data-ci="${i}" value="${v}" style="min-height:40px;padding:4px 6px" aria-label="${i}">`;
     let h = locked ? `<div class="alert">ກຳລັງປະເມີນຢູ່ — ແກ້ການຕັ້ງຄ່າບໍ່ໄດ້ຈົນກວ່າຈະປິດຮອບ</div>` : `<div class="alert info">ໜຶ່ງແຖວ = ໜຶ່ງຂໍ້. ນ້ຳໜັກ 4 ດ້ານ ແລະ ສັດສ່ວນດ້ານ II ຕ້ອງລວມ = 100.</div>`;
     h += `<fieldset id="cfg" ${locked ? 'disabled' : ''} style="border:0;padding:0;margin:0">

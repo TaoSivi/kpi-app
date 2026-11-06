@@ -254,7 +254,7 @@ function kpiUnlock(X, u, req) {
   X.need(X.can(u, 'kpiReview'));
   const { r, e, k } = kpiFor(X, u, req.emp, false);
   if (!k || k.status === 'draft') throw E('KPI ນີ້ເປັນຮ່າງຢູ່ແລ້ວ');
-  if (X.subAns(r.id, 1, e.code).length) throw E('ຟອມ ① ຂອງຄົນນີ້ສົ່ງແລ້ວ — ຕ້ອງເປີດຄືນຟອມ ① ກ່ອນ');
+  if (X.subAns(r.id, 1, e.code).length) throw E('ຟອມປະເມີນລວມຂອງຄົນນີ້ສົ່ງແລ້ວ — ຕ້ອງເປີດຄືນຟອມນັ້ນກ່ອນ');
   k.status = 'draft'; hist(X, k, u, 'HR ປົດລັອກ', req.msg);
 }
 
